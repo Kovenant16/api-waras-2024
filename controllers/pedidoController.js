@@ -54,7 +54,7 @@ const obtenerPedidosNoEntregados = async (req, res) => {
             { path: "local", select: "nombre" }
         )
         .select(
-            "-createdAt -gpsCreacion -horaCreacion -updatedAt -__v -detallePedido -medioDePago -tipoPedido"
+            "-createdAt -gpsCreacion -horaCreacion -updatedAt -__v  -medioDePago -tipoPedido"
         )
         .sort({
             hora: 1  // Orden ascendente por el campo 'hora'
