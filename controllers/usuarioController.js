@@ -131,7 +131,7 @@ const registrarUsuarioAtencion = async (req, res) => {
         //le asignamos un token:
         usuario.token = generarId();
         usuario.rol = "atencion"
-        await usuario.save();        
+        await usuario.save();
         emailRegistroSocio({
             email: usuario.email,
             nombre: usuario.nombre,
@@ -219,8 +219,8 @@ const autenticarUsuarioAdmin = async (req, res) => {
             nombre: usuario.nombre,
             email: usuario.email,
             token: generarJWT(usuario._id),
-            rol:usuario.rol,
-            organizacion:usuario.organizacion
+            rol: usuario.rol,
+            organizacion: usuario.organizacion
         });
     } else {
         const error = new Error("El password es incorrecto");
@@ -251,7 +251,7 @@ const autenticarUsuarioMotorizado = async (req, res) => {
     }
 
     //comprobar si el usuario es motorizado
-    if (usuario.rol !== "motorizado" ) {
+    if (usuario.rol !== "motorizado") {
         const error = new Error("No estas habilitado para esta plataforma");
         return res.status(403).json({ msg: error.message });
     }
@@ -263,7 +263,7 @@ const autenticarUsuarioMotorizado = async (req, res) => {
             nombre: usuario.nombre,
             email: usuario.email,
             token: generarJWT(usuario._id),
-            rol:usuario.rol
+            rol: usuario.rol
         });
     } else {
         const error = new Error("El password es incorrecto");
@@ -275,7 +275,7 @@ const autenticarUsuarioSocio = async (req, res) => {
     const { email, password } = req.body;
 
     //comprobar si el usuario existe
-    const usuario = await Usuario.findOne({ email }).populate({path:"organizacion", select: "direccion gps nombre telefonoUno"});
+    const usuario = await Usuario.findOne({ email }).populate({ path: "organizacion", select: "direccion gps nombre telefonoUno" });
     if (!usuario) {
         const error = new Error("El usuario no existe");
         return res.status(404).json({ msg: error.message });
@@ -294,7 +294,7 @@ const autenticarUsuarioSocio = async (req, res) => {
     }
 
     //comprobar si el usuario es motorizado
-    if (usuario.rol !== "socio" ) {
+    if (usuario.rol !== "socio") {
         const error = new Error("No estas habilitado para esta plataforma");
         return res.status(403).json({ msg: error.message });
     }
@@ -306,8 +306,8 @@ const autenticarUsuarioSocio = async (req, res) => {
             nombre: usuario.nombre,
             email: usuario.email,
             token: generarJWT(usuario._id),
-            rol:usuario.rol,
-            organizacion:usuario.organizacion
+            rol: usuario.rol,
+            organizacion: usuario.organizacion
         });
     } else {
         const error = new Error("El password es incorrecto");
@@ -319,7 +319,7 @@ const autenticarUsuarioAtencion = async (req, res) => {
     const { email, password } = req.body;
 
     //comprobar si el usuario existe
-    const usuario = await Usuario.findOne({ email }).populate({path:"organizacion", select: "direccion gps nombre telefonoUno"});
+    const usuario = await Usuario.findOne({ email }).populate({ path: "organizacion", select: "direccion gps nombre telefonoUno" });
     if (!usuario) {
         const error = new Error("El usuario no existe");
         return res.status(404).json({ msg: error.message });
@@ -338,7 +338,7 @@ const autenticarUsuarioAtencion = async (req, res) => {
     }
 
     //comprobar si el usuario es motorizado
-    if (usuario.rol !== "atencion" ) {
+    if (usuario.rol !== "atencion") {
         const error = new Error("No estas habilitado para esta plataforma");
         return res.status(403).json({ msg: error.message });
     }
@@ -350,8 +350,8 @@ const autenticarUsuarioAtencion = async (req, res) => {
             nombre: usuario.nombre,
             email: usuario.email,
             token: generarJWT(usuario._id),
-            rol:usuario.rol,
-            organizacion:usuario.organizacion
+            rol: usuario.rol,
+            organizacion: usuario.organizacion
         });
     } else {
         const error = new Error("El password es incorrecto");
@@ -486,22 +486,51 @@ const nuevoPassword = async (req, res) => {
     }
 };
 
-const toggleHabilitarUsuario = async(req, res) => {
-    const {token } =req.params
-    const usuario = await Usuario.findOne({ token });
+const desactivarUsuario = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const usuario = await Usuario.findById(id);
+
+        if (!usuario) {
+            const error = new Error("Usuario no encontrado");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        usuario.activo = false;
+        await usuario.save();
+
+        res.json({ msg: "Usuario desactivado correctamente" });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ msg: "Error al desactivar el usuario" });
+    }
+};
+
+const activarUsuario = async (req, res) => {
+    const { id } = req.params;
 
     try {
-        usuario.habilitado = !usuario.habilitado
+        // Convertir el id proporcionado a ObjectId
+        const usuario = await Usuario.findById(id);
 
+
+        if (!usuario) {
+            const error = new Error("Usuario no encontrado");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        usuario.activo = true;
+        usuario.horaActivacion = new Date(); // Registra la hora actual
+        await usuario.save();
+
+        res.json({ msg: "Usuario activado correctamente" });
     } catch (error) {
-        console.log(error.message);
-        
+        console.log(error);
+        res.status(500).json({ msg: "Error al activar el usuario" });
     }
-
-}
-
-const toggleActivarUsuario = async(req, res) => {
-    const {token } =req.params
+};
+const toggleActivarUsuario = async (req, res) => {
+    const { token } = req.params
     const usuario = await Usuario.findOne({ token });
 
     try {
@@ -509,7 +538,7 @@ const toggleActivarUsuario = async(req, res) => {
 
     } catch (error) {
         console.log(error.message);
-        
+
     }
 
 }
@@ -520,15 +549,15 @@ const perfil = async (req, res) => {
     //const user = Usuario.findOne({id:usuario._id})
 
 
-    
-    const user = await Usuario.findOne({_id:usuario._id}).populate({path:"organizacion", select: "direccion gps nombre telefonoUno"}).select("email nombre organizacion rol telefono activo organizacion habilitado")
+
+    const user = await Usuario.findOne({ _id: usuario._id }).populate({ path: "organizacion", select: "direccion gps nombre telefonoUno" }).select("email nombre organizacion rol telefono activo organizacion habilitado")
     res.json(user)
 };
 
-const obtenerUsuarioPorEmail = async(req, res) => {
-    const {email} = req.body;
+const obtenerUsuarioPorEmail = async (req, res) => {
+    const { email } = req.body;
 
-    const usuarios = await Usuario.findOne({email})
+    const usuarios = await Usuario.findOne({ email })
 
     res.json(usuarios)
 }
@@ -551,5 +580,7 @@ export {
     nuevoPassword,
     perfil,
     obtenerUsuarioPorEmail,
-    toggleActivarUsuario
+    toggleActivarUsuario,
+    desactivarUsuario,
+    activarUsuario
 };
