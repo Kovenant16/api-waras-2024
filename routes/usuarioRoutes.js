@@ -19,7 +19,9 @@ import {
     nuevoPassword,
     perfil,
     obtenerUsuarioPorEmail,
-    toggleActivarUsuario
+    toggleActivarUsuario,
+    desactivarUsuario,
+    activarUsuario
 } from "../controllers/usuarioController.js";
 
 import checkAuth from "../middleware/checkAuth.js";
@@ -27,7 +29,9 @@ import checkAuth from "../middleware/checkAuth.js";
 //auth, registro y confirmacion de usuarios
 
 router.post("/", registrarUsuario)
-router.put("/toggleActivarUsuario", toggleActivarUsuario)
+router.put("/toggleActivarUsuario", toggleActivarUsuario);
+router.put("/activarUsuario/:id", activarUsuario);
+router.put("/desactivarUsuario/:id", desactivarUsuario);
 router.post("/registrarAdmin", registrarUsuarioAdmin);
 router.post("/registrarSocio", registrarUsuarioSocio);
 router.post("/registrarMoto", registrarUsuarioMoto);

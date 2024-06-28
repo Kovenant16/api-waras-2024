@@ -64,6 +64,10 @@ const usuarioSchema = mongoose.Schema(
             type: Boolean,
             default: false,
         },
+        horaActivacion: {
+            type: Date,
+            default: null
+        },
     },
     {
         timestamps: true,

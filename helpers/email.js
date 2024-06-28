@@ -34,9 +34,46 @@ export const emailRegistro = async (datos) => {
         `,
     });
 };
-
 export const emailRegistroMoto = async (datos) => {
     const { email, nombre, token, telefono } = datos;
+
+    console.log('EMAIL_HOST:', process.env.EMAIL_HOST);
+    console.log('EMAIL_PORT:', process.env.EMAIL_PORT);
+    console.log('EMAIL_USER:', process.env.EMAIL_USER);
+
+    const transport = nodemailer.createTransport({
+        host: process.env.EMAIL_HOST,
+        port: process.env.EMAIL_PORT,
+        secure: true, // Utiliza SSL/TLS
+        auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS,
+        },
+        tls: {
+            rejectUnauthorized: false // Esto puede ayudar a evitar errores relacionados con certificados autofirmados
+        }
+    });
+
+    // Información de email
+    const info = await transport.sendMail({
+        from: '"Waras" <cuentas@warasdelivery.com>',
+        to: email,
+        subject: "Waras app - Confirma tu cuenta",
+        text: "Confirma tu cuenta en la plataforma waras",
+        html: `
+        <h1>Waras delivery - Confirmacion de cuentas</h1>
+        <p>Hola: ${nombre}, confirma tu cuenta waras</p>
+        <p>Tu cuenta ya está casi lista, solo debes comprobarla en el siguiente enlace:
+            <a href="${process.env.FRONTEND_URL_MOTO}/confirmar/${token}">Confirmar mi cuenta</a>
+        </p>
+        <p>Si tú no creaste esta cuenta, solo ignora el mensaje</p>
+        `,
+    });
+};
+export const emailRegistroMoto2 = async (datos) => {
+    const { email, nombre, token, telefono } = datos;
+
+    
 
     const transport = nodemailer.createTransport({
         host: process.env.EMAIL_HOST,

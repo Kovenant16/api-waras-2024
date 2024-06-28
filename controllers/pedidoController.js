@@ -51,7 +51,7 @@ const obtenerPedidosNoEntregados = async (req, res) => {
             }
         )
         .populate(
-            { path: "local", select: "nombre" }
+            { path: "local", select: "nombre gps" }
         )
         .select(
             "-createdAt -gpsCreacion -horaCreacion -updatedAt -__v  -medioDePago -tipoPedido"
@@ -203,13 +203,6 @@ const editarPedido = async (req, res) => {
         return res.status(404).json({ msg: error.message });
     }
 
-    //validacion de si es administrador o soporte
-    // if (
-    //     !(req.usuario.rol === "Administrador" || req.usuario.rol === "Soporte")
-    // ) {
-    //     const error = new Error("No permitido");
-    //     return res.status(404).json({ msg: error.message });
-    // }
 
     pedido.fecha = req.body.fecha || pedido.fecha;
     pedido.local = req.body.local || pedido.local;
