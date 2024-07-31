@@ -2,6 +2,7 @@ import Usuario from "../models/Usuario.js";
 import generarId from "../helpers/generarId.js";
 import generarJWT from "../helpers/generarJWT.js";
 import { emailRegistro, emailOlvidePassword, emailRegistroMoto, emailOlvidePasswordMoto, emailRegistroSocio, emailOlvidePasswordSocio } from "../helpers/email.js";
+import { sendMessageWithId } from "../bot/bot.js";
 
 const registrarUsuario = async (req, res) => {
     //evitar registros duplicados
@@ -263,7 +264,9 @@ const autenticarUsuarioMotorizado = async (req, res) => {
             nombre: usuario.nombre,
             email: usuario.email,
             token: generarJWT(usuario._id),
-            rol: usuario.rol
+            rol: usuario.rol,
+            horaActivacion:usuario.horaActivacion,
+            estadoUsuario:usuario.estadoUsuario
         });
     } else {
         const error = new Error("El password es incorrecto");
@@ -497,7 +500,11 @@ const desactivarUsuario = async (req, res) => {
         }
 
         usuario.activo = false;
+        usuario.estadoUsuario = "Inactivo"
         await usuario.save();
+
+        // Obtener motorizados activos y enviar mensaje de Telegram
+        await obtenerMotorizadosActivosYEnviarMensaje();
 
         res.json({ msg: "Usuario desactivado correctamente" });
     } catch (error) {
@@ -510,9 +517,7 @@ const activarUsuario = async (req, res) => {
     const { id } = req.params;
 
     try {
-        // Convertir el id proporcionado a ObjectId
         const usuario = await Usuario.findById(id);
-
 
         if (!usuario) {
             const error = new Error("Usuario no encontrado");
@@ -521,7 +526,11 @@ const activarUsuario = async (req, res) => {
 
         usuario.activo = true;
         usuario.horaActivacion = new Date(); // Registra la hora actual
+        usuario.estadoUsuario = "Libre";
         await usuario.save();
+
+        // Obtener motorizados activos y enviar mensaje de Telegram
+        await obtenerMotorizadosActivosYEnviarMensaje();
 
         res.json({ msg: "Usuario activado correctamente" });
     } catch (error) {
@@ -529,6 +538,79 @@ const activarUsuario = async (req, res) => {
         res.status(500).json({ msg: "Error al activar el usuario" });
     }
 };
+
+const liberarUsuario = async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const usuario = await Usuario.findById(id);
+
+        if (!usuario) {
+            const error = new Error("Usuario no encontrado");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        usuario.activo = true;
+        usuario.horaActivacion = new Date(); // Registra la hora actual
+        usuario.estadoUsuario = "Libre";
+        await usuario.save();
+
+        // Obtener motorizados activos y enviar mensaje de Telegram
+        await obtenerMotorizadosLibreYEnviarMensaje(id);
+
+        res.json({ msg: "Usuario activado correctamente" });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ msg: "Error al activar el usuario" });
+    }
+};
+
+const obtenerMotorizadosLibreYEnviarMensaje = async (id) => {
+    try {
+        const motorizado = await Usuario.findById(id)
+        .select("nombre horaActivacion telefono") // Selecciona solo los campos necesarios
+        .sort({ horaActivacion: 1 }); // Ordena por horaActivacion, el más antiguo primero
+
+        // Crear el mensaje de Telegram con la lista de motorizados activos
+        
+        
+            let mensaje = ` ${motorizado.nombre} - Esta libre`;
+        
+
+        // Enviar mensaje a Telegram
+        await sendMessageWithId("-4112441362", mensaje); // Reemplaza "-4112441362" con el chat_id adecuado
+    } catch (error) {
+        console.log("Error al obtener los motorizados activos o enviar el mensaje de Telegram:", error);
+    }
+};
+
+
+
+export const obtenerMotorizadosActivosYEnviarMensaje = async () => {
+    try {
+        const motorizados = await Usuario.find({
+            rol: "motorizado",
+            habilitado: true,
+            activo: true,
+            estadoUsuario: "Libre"
+        })
+        .select("nombre horaActivacion telefono") // Selecciona solo los campos necesarios
+        .sort({ horaActivacion: 1 }); // Ordena por horaActivacion, el más antiguo primero
+
+        // Crear el mensaje de Telegram con la lista de motorizados activos
+        let mensaje = "📋 Lista de motorizados activos:\n\n";
+        motorizados.forEach((motorizado, index) => {
+            mensaje += `${index + 1}. ${motorizado.nombre} - H.A: ${new Date(motorizado.horaActivacion).toLocaleTimeString('es-PE', { hour12: true })}\n`;
+        });
+
+        // Enviar mensaje a Telegram
+        await sendMessageWithId("-4112441362", mensaje); // Reemplaza "-4112441362" con el chat_id adecuado
+    } catch (error) {
+        console.log("Error al obtener los motorizados activos o enviar el mensaje de Telegram:", error);
+    }
+};
+
+
 const toggleActivarUsuario = async (req, res) => {
     const { token } = req.params
     const usuario = await Usuario.findOne({ token });
@@ -550,8 +632,17 @@ const perfil = async (req, res) => {
 
 
 
-    const user = await Usuario.findOne({ _id: usuario._id }).populate({ path: "organizacion", select: "direccion gps nombre telefonoUno" }).select("email nombre organizacion rol telefono activo organizacion habilitado")
+    const user = await Usuario.findOne({ _id: usuario._id }).populate({ path: "organizacion", select: "direccion gps nombre telefonoUno" }).select("email nombre organizacion rol telefono activo organizacion habilitado estadoUsuario horaActivacion")
     res.json(user)
+};
+
+const obtenerEstados = async (req, res) => {
+    const { usuario } = req;
+
+    // Consulta que solo trae los campos especificados
+    const user = await Usuario.findOne({ _id: usuario._id }).select("email nombre estadoUsuario horaActivacion");
+
+    res.json(user);
 };
 
 const obtenerUsuarioPorEmail = async (req, res) => {
@@ -582,5 +673,7 @@ export {
     obtenerUsuarioPorEmail,
     toggleActivarUsuario,
     desactivarUsuario,
-    activarUsuario
+    activarUsuario,
+    obtenerEstados,
+    liberarUsuario
 };

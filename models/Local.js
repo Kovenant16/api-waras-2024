@@ -64,7 +64,10 @@ const localSchema = mongoose.Schema(
         },
         versionCarta:{
             type:Number
-        }
+        },
+        idTelegram:{
+            type:String
+        },
     },
     {
         timestamps: true,

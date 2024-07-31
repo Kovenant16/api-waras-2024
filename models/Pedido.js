@@ -88,11 +88,20 @@ const pedidosSchema = mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: "Usuario",
         },
+        idMensajeTelegram: {
+            type: Number, // El ID del mensaje en Telegram es un número
+            default: null,
+        },
+        idTelegram: {
+            type: String, // El ID del chat en Telegram es una cadena
+            default: null,
+        },
     },
     {
         timestamps: true,
     }
 );
+
 
 const Pedido = mongoose.model("Pedido", pedidosSchema);
 export default Pedido;

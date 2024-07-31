@@ -10,6 +10,7 @@ import {
     obtenerTiendasTotales,
     obtenerProductoPorId,
     toggleDisponibilidadProducto,
+    obtenerProductosPorTiendaAdmin
 } from '../controllers/productoController.js'
 import checkAuth from '../middleware/checkAuth.js';
 
@@ -23,6 +24,7 @@ router.post("/agregarProducto", agregarProducto)
 router.put("/:id", editarProducto);
 router.delete("/:id", eliminarProducto)
 router.post("/obtenerProductosPorTienda", obtenerProductosPorTienda)
+router.post("/obtenerProductosPorTiendaAdmin", obtenerProductosPorTiendaAdmin)
 router.post("/obtenerProductosPorCategoria", obtenerProductosPorCategoria)
 router.put("/toggleDisponibilidad/:id", toggleDisponibilidadProducto);
 

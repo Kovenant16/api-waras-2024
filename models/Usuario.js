@@ -68,6 +68,11 @@ const usuarioSchema = mongoose.Schema(
             type: Date,
             default: null
         },
+        estadoUsuario: { // Añadir el nuevo campo
+            type: String,
+            default: "",
+            trim: true,
+        },
     },
     {
         timestamps: true,

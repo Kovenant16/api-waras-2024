@@ -27,7 +27,12 @@ import {
     obtenerPedidosSinGPS,
     obtenerPedidosPorTelefono,
     obtenerPedidosPorTelefonoYLocal,
-    actualizarCoordenadasPedido
+    actualizarCoordenadasPedido,
+    obtenerMotorizadosActivos,
+    nuevoPedidoSocio,
+    obtenerPedidosPorTelefonoYLocalYGpsVacio,
+    eliminarPedidoSocio,
+    obtenerPedidosNoEntregadosPorLocal
 } from "../controllers/pedidoController.js";
 import checkAuth from "../middleware/checkAuth.js";
 
@@ -35,16 +40,21 @@ const router = express.Router();
 
 router.get("/", checkAuth,);
 router.get("/motorizados", obtenerMotorizados);
+router.get("/motorizadosActivos", obtenerMotorizadosActivos);
 router.get("/locales", obtenerLocales)
-router.post('/obtenerClientes/',checkAuth, obtenerClientes)
+router.post('/obtenerClientes/',checkAuth, obtenerClientes);
+router.post('/nuevoPedidoSocio/',checkAuth, nuevoPedidoSocio);
 router.get("/ultimosVeintePedidos", checkAuth, obtenerUltimosVeintePedidos);
 router.get("/pedidosNoEntregados", checkAuth, obtenerPedidosNoEntregados);
+router.get("/pedidosNoEntregados", checkAuth, obtenerPedidosNoEntregados);
+router.get("/pedidosNoEntregados/:localId", checkAuth, obtenerPedidosNoEntregadosPorLocal);
 router.get("/pedidosMotorizado", checkAuth, obtenerPedidosMotorizadoLogueado);
 router.post('/obtenerPedidosPorFecha', checkAuth, obtenerPedidosPorFecha)
 router.post('/obtenerPedidosPorFechaYDriver', checkAuth, obtenerPedidosPorFechaYDriver)
 router.post('/obtenerPedidosPorFechasYLocal', checkAuth, obtenerPedidosPorFechasYLocal)
 router.post('/busquedaPorTelefono', checkAuth, obtenerPedidosPorTelefono)
 router.post('/busquedaPorTelefonoYLocal', checkAuth, obtenerPedidosPorTelefonoYLocal)
+router.post('/busquedaPorTelefonoYLocalSinGps', checkAuth, obtenerPedidosPorTelefonoYLocalYGpsVacio)
 router.post('/pedidosSocio', checkAuth, obtenerPedidosSocio)
 router.post('/pedidosMotorizado', obtenerPedidosMotorizado)
 router.get('/pedidoSocio/:id', checkAuth, obtenerPedidoSocio)
@@ -57,6 +67,7 @@ router.put("/marcarEnLocal/:id", checkAuth, marcarPedidoEnLocal)
 router.put("/marcarRecogido/:id", checkAuth, marcarPedidoRecogido)
 router.put("/marcarEntregado/:id", checkAuth, marcarPedidoEntregado)
 router.put("/editarGPS/:id", checkAuth, actualizarCoordenadasPedido )
+router.delete("/eliminarPedidoSocio/:id", checkAuth,eliminarPedidoSocio)
 router
     .route("/:id")
     .get(checkAuth, obtenerPedido)

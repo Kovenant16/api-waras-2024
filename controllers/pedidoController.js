@@ -3,8 +3,14 @@ import Usuario from "../models/Usuario.js";
 import Local from "../models/Local.js";
 import Cliente from "../models/Cliente.js";
 import { Server } from 'socket.io';
+import { sendMessage, sendMessageWithId, deleteMessageWithId } from "../bot/bot.js";
 
 const io = new Server(/* Parámetros del servidor, como la instancia de tu servidor HTTP */);
+
+const formatHoraEntrega = (horaEntrega) => {
+    const date = new Date(horaEntrega);
+    return date.toLocaleTimeString('es-PE', { hour12: false });
+};
 
 // Manejo de eventos de WebSocket
 io.on('connection', (socket) => {
@@ -35,6 +41,8 @@ const obtenerUltimosVeintePedidos = async (req, res) => {
     res.json(pedidos);
 };
 
+
+
 //completado
 const obtenerPedidosNoEntregados = async (req, res) => {
     const pedidos = await Pedido.find({
@@ -54,13 +62,51 @@ const obtenerPedidosNoEntregados = async (req, res) => {
             { path: "local", select: "nombre gps" }
         )
         .select(
-            "-createdAt -gpsCreacion -horaCreacion -updatedAt -__v  -medioDePago -tipoPedido"
+            "-createdAt -gpsCreacion -horaCreacion -updatedAt -__v  -tipoPedido"
         )
         .sort({
             hora: 1  // Orden ascendente por el campo 'hora'
         });
     res.json(pedidos);
+    console.log("obtenido todos los pedidos no entregados");
 };
+
+const obtenerPedidosNoEntregadosPorLocal = async (req, res) => {
+    const { localId } = req.params;  // Asumiendo que el localId se pasa como un parámetro en la URL
+
+    try {
+        const pedidos = await Pedido.find({
+            estadoPedido: ["pendiente", "recogido", "sin asignar", "en local"],
+            local: localId
+        })
+            .populate({
+                path: "driver",
+                select: "nombre"
+            })
+            .populate({
+                path: "generadoPor",
+                select: "nombre"
+            })
+            .populate({
+                path: "local",
+                select: "nombre gps"
+            })
+            .select(
+                "-createdAt -gpsCreacion -horaCreacion -updatedAt -__v  -tipoPedido"
+            )
+            .sort({
+                hora: 1  // Orden ascendente por el campo 'hora'
+            });
+
+        res.json(pedidos);
+
+        console.log("obtenido todos los pedidos no entregados de " + localId);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ msg: "Error interno del servidor" });
+    }
+};
+
 
 //completado
 const obtenerPedidosMotorizadoLogueado = async (req, res) => {
@@ -76,26 +122,71 @@ const obtenerPedidosMotorizadoLogueado = async (req, res) => {
 //completado
 const nuevoPedido = async (req, res) => {
     const pedido = new Pedido(req.body);
-
     pedido.generadoPor = req.usuario._id;
 
     try {
         const proyectoAlmacenado = await pedido.save();
+
+        // Obtén el local asociado al pedido
+        const local = await Local.findById(proyectoAlmacenado.local);
+
+        if (!local) {
+            return res.status(404).json({ message: 'Local no encontrado' });
+        }
+
+        // Crea el mensaje incluyendo los detalles del local
+        // const message = `Nuevo pedido creado:\nLocal: ${local.nombre}, Dirección: ${proyectoAlmacenado.direccion}`;
+        // sendMessageWithConfirmButton(message, proyectoAlmacenado._id);
+
         res.json(proyectoAlmacenado);
     } catch (error) {
         console.log(error);
+        res.status(500).json({ message: 'Error al crear el pedido' });
     }
 };
 
+
+
+const nuevoPedidoSocio = async (req, res) => {
+    const pedido = new Pedido(req.body);
+    pedido.generadoPor = req.usuario._id;
+
+    try {
+        const proyectoAlmacenado = await pedido.save();
+
+        // Obtén el local asociado al pedido
+        const local = await Local.findById(proyectoAlmacenado.local);
+
+        if (!local) {
+            return res.status(404).json({ message: 'Local no encontrado' });
+        }
+
+        // Capitaliza la primera letra del nombre del local y de la dirección
+        const nombreLocal = local.nombre.charAt(0).toUpperCase() + local.nombre.slice(1).toLowerCase();
+        const direccion = proyectoAlmacenado.direccion.charAt(0).toUpperCase() + proyectoAlmacenado.direccion.slice(1).toLowerCase();
+
+        // Crea el mensaje incluyendo los detalles del local y la hora
+        const message = `✅Nuevo pedido creado\n\nPor: ${nombreLocal}\nDirección: ${direccion}\nHora: ${proyectoAlmacenado.hora}`;
+        sendMessage(message);
+
+
+        res.json(proyectoAlmacenado);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ message: 'Error al crear el pedido' });
+    }
+};
+
+
 // const nuevoPedido = async (req, res, io) => {
 //     const pedido = new Pedido(req.body);
-  
+
 //     pedido.generadoPor = req.usuario._id;
-  
+
 //     try {
 //       const pedidoAlmacenado = await pedido.save();
 //       res.json(pedidoAlmacenado);
-  
+
 //       // **Emisión del evento 'server:newpedido'**
 //       io.emit('server:newpedido', pedidoAlmacenado);
 //     } catch (error) {
@@ -252,6 +343,40 @@ const eliminarPedido = async (req, res) => {
     }
 };
 
+const eliminarPedidoSocio = async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const pedido = await Pedido.findById(id);
+        console.log(pedido);
+
+        if (!pedido) {
+            const error = new Error("Pedido no encontrado");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        // Validación de si es administrador o soporte
+        if (req.usuario.rol === "Administrador" || req.usuario.rol === "Soporte") {
+            const error = new Error("No permitido");
+            return res.status(403).json({ msg: error.message });
+        }
+
+        // Verificación del estado del pedido
+        const estadosNoEliminables = ["en local", "recogido", "entregado", "pendiente"];
+        if (estadosNoEliminables.includes(pedido.estadoPedido)) {
+            const error = new Error(`No se puede eliminar el pedido porque ya está en estado: ${pedido.estadoPedido}`);
+            return res.status(400).json({ msg: error.message });
+        }
+
+        await pedido.deleteOne();
+        res.json({ msg: "Pedido eliminado" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ msg: "Error al eliminar el pedido" });
+    }
+};
+
+
 const asignarMotorizado = async (req, res) => { };
 
 const obtenerPedidosPorFecha = async (req, res) => {
@@ -351,7 +476,34 @@ const obtenerPedidosPorTelefonoYLocal = async (req, res) => {
     }
 };
 
+const obtenerPedidosPorTelefonoYLocalYGpsVacio = async (req, res) => {
+    try {
+        let { telefono, localId } = req.body;
+        telefono = telefono.replace(/\s+/g, '');
 
+        let filtro = {
+            telefono,
+            $or: [
+                { gps: { $exists: false } },
+                { gps: "" }
+            ]
+        };
+
+        if (localId) {
+            filtro.local = localId;
+        }
+
+        const pedidos = await Pedido.find(filtro)
+            .select("delivery direccion fecha gps telefono")
+            .sort({ fecha: -1 })
+            .limit(6);
+
+        res.json(pedidos);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Error al obtener los pedidos." });
+    }
+};
 
 const obtenerPedidosSinGPS = async (req, res) => {
     try {
@@ -396,9 +548,7 @@ const obtenerPedidosSinGPS = async (req, res) => {
         console.error(error);
         res.status(500).json({ error: "Error al obtener los pedidos sin GPS." });
     }
-}
-
-
+};
 
 const obtenerPedidosPorFechaYDriver = async (req, res) => {
     const { fecha, driver } = req.body; // Recuperar fecha y ID del driver desde el cuerpo de la solicitud
@@ -452,14 +602,29 @@ const obtenerPedidosPorFechasYLocal = async (req, res) => {
     res.json(pedidos);
 };
 
-
-
 const obtenerMotorizados = async (req, res) => {
     const motorizados = await Usuario.find({ rol: "motorizado", habilitado: true }).select(
         " -createdAt   -password -rol -token -updatedAt -__v "
     ).sort({ nombre: 1 });;
 
     res.json(motorizados)
+};
+
+const obtenerMotorizadosActivos = async (req, res) => {
+    try {
+        const motorizados = await Usuario.find({
+            rol: "motorizado",
+            habilitado: true,
+            activo: true,
+            estadoUsuario: "Libre"
+        })
+            .select("nombre horaActivacion telefono") // Selecciona solo los campos necesarios
+            .sort({ horaActivacion: 1 }); // Ordena por horaActivacion, el más antiguo primero
+
+        res.json(motorizados);
+    } catch (error) {
+        res.status(500).json({ error: "Error al obtener los motorizados activos" });
+    }
 };
 
 const obtenerLocales = async (req, res) => {
@@ -483,20 +648,25 @@ const obtenerPedidosSocio = async (req, res) => {
     const { organizacion } = req.body;
     const pedidosSocio = await Pedido.find({ local: organizacion }).populate({ path: "driver", select: "nombre" }).select("cobrar horaLlegada horaRecojo hora fecha createdAt estadoPedido delivery direccion telefono local medioDePago tipoPedido")
     res.json(pedidosSocio);
-    console.log("pedidos socio obtenidos", organizacion)
-}
+
+};
 
 const obtenerPedidosMotorizado = async (req, res) => {
     const { driver } = req.body;
     const pedidosMotorizado = await Pedido.find({ driver }).populate("driver").populate("local")
     res.json(pedidosMotorizado)
-}
+};
 
-const aceptarPedido = async (req, res) => {
+const aceptarPedido2 = async (req, res) => {
     const { id } = req.params;
 
     try {
         const pedido = await Pedido.findById(id);
+        const { idTelegram } = await Local.findById(pedido.local).select("idTelegram");
+
+        console.log(idTelegram);
+
+
 
         if (!pedido) {
             const error = new Error("Pedido no encontrado");
@@ -507,6 +677,65 @@ const aceptarPedido = async (req, res) => {
             pedido.driver = req.body.driver;
             pedido.estadoPedido = "pendiente"
             const pedidoGuardado = await pedido.save();
+            res.json(pedidoGuardado);
+
+            sendMessageWithId(idTelegram, `Pedido:\n${pedido.direccion}\nha sido aceptado por motorizado`)
+        } else {
+            const error = new Error("Pedido ya ha sido tomado");
+            return res.status(400).json({ msg: error.message });
+        }
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ msg: "Error interno del servidor" });
+    }
+};
+
+const aceptarPedido = async (req, res) => {
+    const { id } = req.params;
+
+    console.log("driver: " + req.body.driver);
+    console.log("idPedido: "+ id);
+    
+
+    try {
+        const pedido = await Pedido.findById(id);
+        if (!pedido) {
+            const error = new Error("Pedido no encontrado");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        
+
+        const local = await Local.findById(pedido.local).select("idTelegram");
+        console.log(local.idTelegram);
+        const idTelegram = local?.idTelegram; // Usar optional chaining para evitar errores si local es null
+
+        console.log('ID de Telegram:', idTelegram); 
+        
+        if (pedido.idMensajeTelegram && pedido.idTelegram) {
+            await deleteMessageWithId(pedido.idTelegram, pedido.idMensajeTelegram);
+          }// Verificar el valor del ID de Telegram
+
+        if (!pedido.driver) {
+            pedido.driver = req.body.driver;
+            pedido.estadoPedido = "pendiente";
+            pedido.idTelegram = idTelegram;
+            const pedidoGuardado = await pedido.save();
+
+
+            const usuario = await Usuario.findById(req.body.driver)
+            usuario.estadoUsuario = "Con pedido"
+            await usuario.save();
+
+            // Enviar mensaje y guardar el ID del mensaje en el pedido
+            if (idTelegram) {
+                const mensaje = await sendMessageWithId(idTelegram, `🛵 Pedido aceptado:\n\nHora: ${pedido.hora}\nDireccion:${pedido.direccion}\n\nha sido aceptado por motorizado`);
+                pedido.idMensajeTelegram = mensaje.message_id; // Guardar el ID del mensaje
+                await pedido.save();
+            } else {
+                console.error('ID de Telegram no disponible');
+            }
+
             res.json(pedidoGuardado);
         } else {
             const error = new Error("Pedido ya ha sido tomado");
@@ -544,7 +773,7 @@ const liberarPedido = async (req, res) => {
     }
 };
 
-const marcarPedidoEnLocal = async (req, res) => {
+const marcarPedidoEnLocal2 = async (req, res) => {
     const { id } = req.params;
 
     try {
@@ -564,6 +793,41 @@ const marcarPedidoEnLocal = async (req, res) => {
         res.status(500).json({ msg: "Error interno del servidor" });
     }
 };
+
+const marcarPedidoEnLocal = async (req, res) => {
+    const { id } = req.params;
+  
+    try {
+      const pedido = await Pedido.findById(id);
+      if (!pedido) {
+        const error = new Error("Pedido no encontrado");
+        return res.status(404).json({ msg: error.message });
+      }
+  
+      // Eliminar mensaje anterior
+      if (pedido.idMensajeTelegram && pedido.idTelegram) {
+        await deleteMessageWithId(pedido.idTelegram, pedido.idMensajeTelegram);
+      }
+  
+      pedido.estadoPedido = "en local";
+      pedido.horaLlegadaLocal = new Date().toISOString();
+      const pedidoGuardado = await pedido.save();
+  
+      // Enviar nuevo mensaje
+      if (pedido.idTelegram) { // Verificar que idTelegram no es null
+        const mensaje = await sendMessageWithId(pedido.idTelegram, `📍Pedido en espera:\n\nHora: ${pedido.hora}\nDireccion: ${pedido.direccion}\n\nestá esperando en el local.`);
+        pedido.idMensajeTelegram = mensaje.message_id; // Guardar nuevo ID del mensaje
+        await pedido.save();
+      } else {
+        console.error('Chat ID is missing for sending the message');
+      }
+  
+      res.json(pedidoGuardado);
+    } catch (error) {
+      console.log(error);
+      res.status(500).json({ msg: "Error interno del servidor" });
+    }
+  };
 
 const marcarPedidoRecogido = async (req, res) => {
     const { id } = req.params;
@@ -610,11 +874,43 @@ const actualizarCoordenadasPedido = async (req, res) => {
 };
 
 
+// const marcarPedidoEntregado = async (req, res) => {
+//     const { id } = req.params;
+
+//     try {
+//         const pedido = await Pedido.findById(id);
+
+//         if (!pedido) {
+//             const error = new Error("Pedido no encontrado");
+//             return res.status(404).json({ msg: error.message });
+//         }
+
+//         pedido.estadoPedido = "entregado";
+//         pedido.horaEntrega = new Date().toISOString();  // Cambiar el estado del pedido
+//         const pedidoGuardado = await pedido.save();
+//         res.json(pedidoGuardado);
+//     } catch (error) {
+//         console.log(error);
+//         res.status(500).json({ msg: "Error interno del servidor" });
+//     }
+// };
+
 const marcarPedidoEntregado = async (req, res) => {
     const { id } = req.params;
 
+    console.log("driver: " +req.body.driver);
+    console.log("idPedido: "+ id);
+
+    
+
+    
+
     try {
         const pedido = await Pedido.findById(id);
+
+        if (pedido.idMensajeTelegram && pedido.idTelegram) {
+            await deleteMessageWithId(pedido.idTelegram, pedido.idMensajeTelegram);
+          }
 
         if (!pedido) {
             const error = new Error("Pedido no encontrado");
@@ -622,8 +918,19 @@ const marcarPedidoEntregado = async (req, res) => {
         }
 
         pedido.estadoPedido = "entregado";
-        pedido.horaEntrega = new Date().toISOString();  // Cambiar el estado del pedido
+        pedido.horaEntrega = new Date().toISOString();
         const pedidoGuardado = await pedido.save();
+
+        const horaEntregaFormateada = formatHoraEntrega(pedido.horaEntrega);
+
+        if (pedido.idTelegram) {
+            const mensaje = await sendMessageWithId(pedido.idTelegram, `✅Pedido entregado:\n\nHora: ${pedido.hora}\nDireccion: ${pedido.direccion}\n\nha sido entregado con éxito a las:\n${horaEntregaFormateada}.`);
+            pedido.idMensajeTelegram = mensaje.message_id;
+            await pedido.save();
+        } else {
+            console.error('ID de Telegram no disponible');
+        }
+
         res.json(pedidoGuardado);
     } catch (error) {
         console.log(error);
@@ -640,6 +947,7 @@ export {
     obtenerPedido,
     editarPedido,
     eliminarPedido,
+    eliminarPedidoSocio,
     asignarMotorizado,
     obtenerPedidosMotorizadoLogueado,
     obtenerPedidosNoEntregados,
@@ -662,5 +970,9 @@ export {
     obtenerPedidosSinGPS,
     obtenerPedidosPorTelefono,
     obtenerPedidosPorTelefonoYLocal,
-    actualizarCoordenadasPedido
+    actualizarCoordenadasPedido,
+    obtenerMotorizadosActivos,
+    nuevoPedidoSocio,
+    obtenerPedidosPorTelefonoYLocalYGpsVacio,
+    obtenerPedidosNoEntregadosPorLocal
 };
