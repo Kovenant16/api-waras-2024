@@ -15,7 +15,8 @@ const obtenerTiendasTotales = async (req, res) => {
 }
 
 const obtenerTienda = async (req, res) => {
-    const { ruta } = req.params; // Obtiene el valor de "ruta" desde los parámetros
+    const { ruta } = req.params;
+    console.log(ruta); // Obtiene el valor de "ruta" desde los parámetros
 
     try {
         // Utiliza el valor de "ruta" para buscar la tienda por ese campo
@@ -35,8 +36,50 @@ const obtenerTienda = async (req, res) => {
 };
 
 
-
 const obtenerProductosPorTienda = async (req, res) => {
+    const { idLocal, version } = req.body;
+    console.log("ID de la tienda:", idLocal);
+    console.log("Versión proporcionada:", version);
+
+    try {
+        // Verifica si idLocal y version son valores válidos antes de realizar la consulta
+        if (!idLocal || version === undefined) {
+            return res.status(400).json({ error: "ID de tienda o versión no proporcionado" });
+        }
+
+        // Encuentra el local para obtener el valor de versionCarta
+        const local = await Local.findById(idLocal).select('versionCarta');
+        console.log(local);
+        if (!local) {
+            return res.status(404).json({ error: "Tienda no encontrada" });
+        }
+
+        // Compara version proporcionada con versionCarta del local
+        if (version >= local.versionCarta) {
+            return res.status(204).send(); // No retorna nada si la versión es igual o mayor
+        }
+
+        // Utiliza async/await para esperar la consulta a la base de datos
+        const productos = await Producto.find({ local: idLocal })
+            .select('categoria cover descripcion nombre precio taper disponibilidad')
+            .sort({ categoria: 'asc' }); // Ordena los productos por categoría en orden ascendente
+
+        if (!productos || productos.length === 0) {
+            return res.status(404).json({ error: "No se encontraron productos para esta tienda" });
+        }
+
+        // Envía la respuesta con los productos encontrados
+        res.json(productos);
+
+        console.log("productos obtenidos", productos.length);
+    } catch (error) {
+        console.error("Error al obtener productos:", error);
+        res.status(500).json({ error: "Error interno del servidor" });
+    }
+};
+
+
+const obtenerProductosPorTiendaAdmin = async (req, res) => {
     const { idLocal } = req.body;
     console.log("ID de la tienda:", idLocal);
 
@@ -91,6 +134,8 @@ const obtenerProductoPorId = async (req, res) => {
         res.status(500).json({ error: "Error interno del servidor" });
     }
 };
+
+
 
 const obtenerProductosPorCategoria = async (req, res) => {
     const { categoria } = req.body;
@@ -152,12 +197,16 @@ const agregarProducto = async (req, res) => {
         });
 
         const productoAlmacenado = await nuevoProducto.save();
+
+        // Incrementar versionCarta del local
+        await Local.findByIdAndUpdate(localId, { $inc: { versionCarta: 1 } });
+
         res.status(201).json(productoAlmacenado);
     } catch (error) {
         console.error(error);
         res.status(500).json({ mensaje: 'Error en el servidor' });
     }
-}
+};
 
 
 
@@ -166,22 +215,25 @@ const eliminarProducto = async (req, res) => {
     const { id } = req.params;
 
     try {
-        // Primero, verifica si el producto existe en la base de datos
         const producto = await Producto.findById(id);
 
         if (!producto) {
             return res.status(404).json({ mensaje: 'Producto no encontrado' });
         }
 
-        // Si el producto existe, elimínalo
+        // Eliminar el producto
         await producto.deleteOne();
+
+        // Incrementar versionCarta del local
+        await Local.findByIdAndUpdate(producto.local, { $inc: { versionCarta: 1 } });
 
         res.status(200).json({ mensaje: 'Producto eliminado con éxito' });
     } catch (error) {
         console.error(error);
         res.status(500).json({ mensaje: 'Error en el servidor' });
     }
-}
+};
+
 
 const editarProducto = async (req, res) => {
     const { id } = req.params;
@@ -193,13 +245,6 @@ const editarProducto = async (req, res) => {
             return res.status(404).json({ msg: "Producto no encontrado" });
         }
 
-        // Aquí puedes realizar una validación para determinar si el usuario tiene permiso para editar el producto.
-        // Por ejemplo, si solo los administradores pueden editar productos:
-        // if (req.usuario.rol !== "Administrador") {
-        //     return res.status(403).json({ msg: "No tienes permiso para editar productos" });
-        // }
-
-        // Ahora actualizamos los campos del producto con los valores del cuerpo de la solicitud (req.body).
         producto.nombre = req.body.nombre || producto.nombre;
         producto.categoria = req.body.categoria || producto.categoria;
         producto.descripcion = req.body.descripcion || producto.descripcion;
@@ -211,12 +256,17 @@ const editarProducto = async (req, res) => {
         producto.opcionesMultiples = req.body.opcionesMultiples;
 
         const productoActualizado = await producto.save();
+
+        // Incrementar versionCarta del local
+        await Local.findByIdAndUpdate(producto.local, { $inc: { versionCarta: 1 } });
+
         res.json(productoActualizado);
     } catch (error) {
         console.log(error);
         res.status(500).json({ msg: "Error al editar el producto" });
     }
 };
+
 
 const toggleDisponibilidadProducto = async (req, res) => {
     const { id } = req.params;
@@ -252,5 +302,6 @@ export {
     obtenerProductosPorCategoria,
     obtenerTiendasTotales,
     toggleDisponibilidadProducto,
+    obtenerProductosPorTiendaAdmin
     
 };
