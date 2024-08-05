@@ -55,8 +55,37 @@ const obtenerProductosPorTienda = async (req, res) => {
         }
 
         // Compara version proporcionada con versionCarta del local
-        if (version >= local.versionCarta) {
+        if (version !== local.versionCarta) {
             return res.status(204).send(); // No retorna nada si la versión es igual o mayor
+        }
+
+        // Utiliza async/await para esperar la consulta a la base de datos
+        const productos = await Producto.find({ local: idLocal })
+            .select('categoria cover descripcion nombre precio taper disponibilidad')
+            .sort({ categoria: 'asc' }); // Ordena los productos por categoría en orden ascendente
+
+        if (!productos || productos.length === 0) {
+            return res.status(404).json({ error: "No se encontraron productos para esta tienda" });
+        }
+
+        // Envía la respuesta con los productos encontrados
+        res.json(productos);
+
+        console.log("productos obtenidos", productos.length);
+    } catch (error) {
+        console.error("Error al obtener productos:", error);
+        res.status(500).json({ error: "Error interno del servidor" });
+    }
+};
+
+const obtenerProductosPorTiendaSinVersion = async (req, res) => {
+    const { idLocal } = req.body;
+    console.log("ID de la tienda:", idLocal);
+
+    try {
+        // Verifica si idLocal es un valor válido antes de realizar la consulta
+        if (!idLocal) {
+            return res.status(400).json({ error: "ID de tienda no proporcionado" });
         }
 
         // Utiliza async/await para esperar la consulta a la base de datos
@@ -302,6 +331,7 @@ export {
     obtenerProductosPorCategoria,
     obtenerTiendasTotales,
     toggleDisponibilidadProducto,
-    obtenerProductosPorTiendaAdmin
+    obtenerProductosPorTiendaAdmin,
+    obtenerProductosPorTiendaSinVersion
     
 };
