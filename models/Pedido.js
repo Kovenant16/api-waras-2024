@@ -70,6 +70,7 @@ const pedidosSchema = mongoose.Schema(
             enum: [
                 "sin asignar",
                 "pendiente",
+                "aceptado",
                 "en local",
                 "recogido",
                 "entregado",
