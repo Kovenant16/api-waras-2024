@@ -3,6 +3,7 @@ import generarId from "../helpers/generarId.js";
 import generarJWT from "../helpers/generarJWT.js";
 import { emailRegistro, emailOlvidePassword, emailRegistroMoto, emailOlvidePasswordMoto, emailRegistroSocio, emailOlvidePasswordSocio } from "../helpers/email.js";
 import { sendMessageWithId } from "../bot/bot.js";
+import moment from 'moment-timezone';
 
 const registrarUsuario = async (req, res) => {
     //evitar registros duplicados
@@ -586,6 +587,30 @@ const obtenerMotorizadosLibreYEnviarMensaje = async (id) => {
 
 
 
+// export const obtenerMotorizadosActivosYEnviarMensaje = async () => {
+//     try {
+//         const motorizados = await Usuario.find({
+//             rol: "motorizado",
+//             habilitado: true,
+//             activo: true,
+//             estadoUsuario: "Libre"
+//         })
+//         .select("nombre horaActivacion telefono") // Selecciona solo los campos necesarios
+//         .sort({ horaActivacion: 1 }); // Ordena por horaActivacion, el más antiguo primero
+
+//         // Crear el mensaje de Telegram con la lista de motorizados activos
+//         let mensaje = "📋 Lista de motorizados activos:\n\n";
+//         motorizados.forEach((motorizado, index) => {
+//             mensaje += `${index + 1}. ${motorizado.nombre} - H.A: ${new Date(motorizado.horaActivacion).toLocaleTimeString('es-PE', { hour12: true })}\n`;
+//         });
+
+//         // Enviar mensaje a Telegram
+//         await sendMessageWithId("-4112441362", mensaje); // Reemplaza "-4112441362" con el chat_id adecuado
+//     } catch (error) {
+//         console.log("Error al obtener los motorizados activos o enviar el mensaje de Telegram:", error);
+//     }
+// };
+
 export const obtenerMotorizadosActivosYEnviarMensaje = async () => {
     try {
         const motorizados = await Usuario.find({
@@ -600,7 +625,8 @@ export const obtenerMotorizadosActivosYEnviarMensaje = async () => {
         // Crear el mensaje de Telegram con la lista de motorizados activos
         let mensaje = "📋 Lista de motorizados activos:\n\n";
         motorizados.forEach((motorizado, index) => {
-            mensaje += `${index + 1}. ${motorizado.nombre} - H.A: ${new Date(motorizado.horaActivacion).toLocaleTimeString('es-PE', { hour12: true })}\n`;
+            const horaActivacionLocal = moment(motorizado.horaActivacion).tz('America/Lima').format('hh:mm:ss A');
+            mensaje += `${index + 1}. ${motorizado.nombre} - H.A: ${horaActivacionLocal}\n`;
         });
 
         // Enviar mensaje a Telegram

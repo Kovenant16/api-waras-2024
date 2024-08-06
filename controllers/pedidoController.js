@@ -164,10 +164,10 @@ const nuevoPedidoSocio = async (req, res) => {
         // Capitaliza la primera letra del nombre del local y de la dirección
         const nombreLocal = local.nombre.charAt(0).toUpperCase() + local.nombre.slice(1).toLowerCase();
         const direccion = proyectoAlmacenado.direccion.charAt(0).toUpperCase() + proyectoAlmacenado.direccion.slice(1).toLowerCase();
-
+        const chatIdCentral = '-4112441362'
         // Crea el mensaje incluyendo los detalles del local y la hora
         const message = `✅Nuevo pedido creado\n\nPor: ${nombreLocal}\nDirección: ${direccion}\nHora: ${proyectoAlmacenado.hora}`;
-        sendMessage(message);
+        sendMessage(message, chatIdCentral);
 
 
         res.json(proyectoAlmacenado);
@@ -377,7 +377,61 @@ const eliminarPedidoSocio = async (req, res) => {
 };
 
 
-const asignarMotorizado = async (req, res) => { };
+const asignarMotorizado = async (req, res) => {
+    const { idPedido, idDriver } = req.body;
+
+    console.log("driver: " + idDriver);
+    console.log("idPedido: " + idPedido);
+
+    try {
+        const pedido = await Pedido.findById(idPedido);
+        if (!pedido) {
+            const error = new Error("Pedido no encontrado");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        const local = await Local.findById(pedido.local).select("idTelegram");
+        const idTelegram = local?.idTelegram; // Usar optional chaining para evitar errores si local es null
+
+        console.log('ID de Telegram:', idTelegram);
+
+        if (pedido.idMensajeTelegram && pedido.idTelegram) {
+            await deleteMessageWithId(pedido.idTelegram, pedido.idMensajeTelegram);
+        }
+
+        if (!pedido.driver) {
+            pedido.driver = idDriver;
+            pedido.estadoPedido = "pendiente";
+            pedido.idTelegram = idTelegram;
+            const pedidoGuardado = await pedido.save();
+
+            const usuario = await Usuario.findById(idDriver);
+            if (!usuario) {
+                const error = new Error("Usuario no encontrado");
+                return res.status(404).json({ msg: error.message });
+            }
+            usuario.estadoUsuario = "Con pedido";
+            await usuario.save();
+
+            // Enviar mensaje y guardar el ID del mensaje en el pedido
+            if (idTelegram) {
+                const mensaje = await sendMessageWithId(idTelegram, `🛵 Pedido asignado:\n\nHora: ${pedido.hora}\nDireccion:${pedido.direccion}\n\nha sido aceptado por motorizado`);
+                pedido.idMensajeTelegram = mensaje.message_id; // Guardar el ID del mensaje
+                await pedido.save();
+            } else {
+                console.error('ID de Telegram no disponible');
+            }
+
+            res.json(pedidoGuardado);
+        } else {
+            const error = new Error("Pedido ya ha sido tomado");
+            return res.status(400).json({ msg: error.message });
+        }
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ msg: "Error interno del servidor" });
+    }
+ };
 
 const obtenerPedidosPorFecha = async (req, res) => {
     const { fecha } = req.body;

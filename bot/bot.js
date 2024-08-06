@@ -129,8 +129,8 @@ export const sendMessageWithConfirmButton = (message, orderId) => {
     });
 };
 
-export const sendMessage = (message) => {
-  const chatId = '-4112441362';
+export const sendMessage = (message, chatId) => {
+  //const chatId = '-4112441362';
   bot.telegram.sendMessage(chatId, message)
     .then(() => {
       console.log('Message sent successfully');

@@ -43,6 +43,7 @@ router.get("/motorizados", obtenerMotorizados);
 router.get("/motorizadosActivos", obtenerMotorizadosActivos);
 router.get("/locales", obtenerLocales)
 router.post('/obtenerClientes/',checkAuth, obtenerClientes);
+router.post('/asignarMotorizado/',checkAuth, asignarMotorizado);
 router.post('/nuevoPedidoSocio/',checkAuth, nuevoPedidoSocio);
 router.get("/ultimosVeintePedidos", checkAuth, obtenerUltimosVeintePedidos);
 router.get("/pedidosNoEntregados", checkAuth, obtenerPedidosNoEntregados);
