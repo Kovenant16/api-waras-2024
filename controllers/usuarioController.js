@@ -628,8 +628,8 @@ export const obtenerMotorizadosActivosYEnviarMensaje = async () => {
         });
 
         // Enviar mensaje a Telegram
-        //await sendMessageWithId("-4112441362", mensaje); // Reemplaza "-4112441362" con el chat_id adecuado grupo
-        await sendMessageWithId("-4241205369", mensaje); //pruebas
+        await sendMessageWithId("-4112441362", mensaje); // Reemplaza "-4112441362" con el chat_id adecuado grupo
+        //await sendMessageWithId("-4241205369", mensaje); //pruebas
     } catch (error) {
         console.log("Error al obtener los motorizados activos o enviar el mensaje de Telegram:", error);
     }
