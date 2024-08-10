@@ -616,21 +616,20 @@ export const obtenerMotorizadosActivosYEnviarMensaje = async () => {
         const motorizados = await Usuario.find({
             rol: "motorizado",
             habilitado: true,
-            activo: true,
-            estadoUsuario: "Libre"
+            activo: true
         })
-        .select("nombre horaActivacion telefono") // Selecciona solo los campos necesarios
+        .select("nombre horaActivacion  estadoUsuario") // Selecciona solo los campos necesarios
         .sort({ horaActivacion: 1 }); // Ordena por horaActivacion, el más antiguo primero
 
         // Crear el mensaje de Telegram con la lista de motorizados activos
         let mensaje = "📋 Lista de motorizados activos:\n\n";
         motorizados.forEach((motorizado, index) => {
-            const horaActivacionLocal = moment(motorizado.horaActivacion).tz('America/Lima').format('hh:mm:ss A');
-            mensaje += `${index + 1}. ${motorizado.nombre} - H.A: ${horaActivacionLocal}\n`;
+            mensaje += `${index + 1}. ${motorizado.nombre} - EE: ${motorizado.estadoUsuario}\n`;
         });
 
         // Enviar mensaje a Telegram
-        await sendMessageWithId("-4112441362", mensaje); // Reemplaza "-4112441362" con el chat_id adecuado
+        //await sendMessageWithId("-4112441362", mensaje); // Reemplaza "-4112441362" con el chat_id adecuado grupo
+        await sendMessageWithId("-4241205369", mensaje); //pruebas
     } catch (error) {
         console.log("Error al obtener los motorizados activos o enviar el mensaje de Telegram:", error);
     }
