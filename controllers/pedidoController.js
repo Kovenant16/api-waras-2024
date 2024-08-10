@@ -380,58 +380,69 @@ const eliminarPedidoSocio = async (req, res) => {
 const asignarMotorizado = async (req, res) => {
     const { idPedido, idDriver } = req.body;
 
-    console.log("driver: " + idDriver);
-    console.log("idPedido: " + idPedido);
-
     try {
+        // 1. Verificar si el pedido existe
         const pedido = await Pedido.findById(idPedido);
         if (!pedido) {
-            const error = new Error("Pedido no encontrado");
-            return res.status(404).json({ msg: error.message });
+            return res.status(404).json({ msg: "Pedido no encontrado" });
         }
 
-        const local = await Local.findById(pedido.local).select("idTelegram");
-        const idTelegram = local?.idTelegram; // Usar optional chaining para evitar errores si local es null
+        // 2. Verificar si el usuario existe
+        const usuario = await Usuario.findById(idDriver);
+        if (!usuario) {
+            return res.status(404).json({ msg: "Usuario no encontrado" });
+        }
 
+        // 3. Obtener idTelegram del local asociado al pedido
+        const local = await Local.findById(pedido.local).select("idTelegram");
+        const idTelegram = local?.idTelegram;
+
+        // Log de ID de Telegram para debug
         console.log('ID de Telegram:', idTelegram);
 
+        // 4. Si el pedido ya tiene un motorizado asignado, rechazar la asignación
+        if (pedido.driver) {
+            return res.status(400).json({ msg: "Pedido ya ha sido tomado" });
+        }
+
+        // 5. Eliminar el mensaje anterior de Telegram, si existe
         if (pedido.idMensajeTelegram && pedido.idTelegram) {
             await deleteMessageWithId(pedido.idTelegram, pedido.idMensajeTelegram);
         }
 
-        if (!pedido.driver) {
-            pedido.driver = idDriver;
-            pedido.estadoPedido = "pendiente";
-            pedido.idTelegram = idTelegram;
-            const pedidoGuardado = await pedido.save();
+        // 6. Asignar motorizado al pedido y actualizar su estado
+        pedido.driver = idDriver;
+        pedido.estadoPedido = "pendiente";
+        pedido.idTelegram = idTelegram;
 
-            const usuario = await Usuario.findById(idDriver);
-            if (!usuario) {
-                const error = new Error("Usuario no encontrado");
-                return res.status(404).json({ msg: error.message });
-            }
-            usuario.estadoUsuario = "Con pedido";
-            await usuario.save();
+        // Guardar los cambios en el pedido
+        const pedidoGuardado = await pedido.save();
 
-            // Enviar mensaje y guardar el ID del mensaje en el pedido
-            if (idTelegram) {
-                const mensaje = await sendMessageWithId(idTelegram, `🛵 Pedido asignado:\n\nHora: ${pedido.hora}\nDireccion:${pedido.direccion}\n\nha sido aceptado por motorizado`);
-                pedido.idMensajeTelegram = mensaje.message_id; // Guardar el ID del mensaje
-                await pedido.save();
-            } else {
-                console.error('ID de Telegram no disponible');
-            }
+        // 7. Actualizar el estado del usuario a "Con pedido"
+        usuario.estadoUsuario = "Con pedido";
+        await usuario.save();
 
-            res.json(pedidoGuardado);
+        // 8. Enviar mensaje de Telegram y guardar el ID del mensaje
+        if (idTelegram) {
+            const mensaje = await sendMessageWithId(
+                idTelegram,
+                `🛵 Pedido asignado:\n\nHora: ${pedido.hora}\nDireccion: ${pedido.direccion}\n\nha sido aceptado por motorizado`
+            );
+            pedido.idMensajeTelegram = mensaje.message_id; // Guardar el ID del mensaje
+            await pedido.save();
         } else {
-            const error = new Error("Pedido ya ha sido tomado");
-            return res.status(400).json({ msg: error.message });
+            console.error('ID de Telegram no disponible');
         }
+
+        // 9. Enviar la respuesta al cliente con el pedido guardado
+        res.json(pedidoGuardado);
+
     } catch (error) {
-        console.log(error);
+        console.error("Error en la asignación de motorizado:", error);
         res.status(500).json({ msg: "Error interno del servidor" });
     }
- };
+};
+
 
 const obtenerPedidosPorFecha = async (req, res) => {
     const { fecha } = req.body;
@@ -952,19 +963,15 @@ const actualizarCoordenadasPedido = async (req, res) => {
 const marcarPedidoEntregado = async (req, res) => {
     const { id } = req.params;
 
-    console.log("driver: " +req.body.driver);
-    console.log("idPedido: "+ id);
-
-    
-
-    
+    console.log("driver: " + req.body.driver);
+    console.log("idPedido: " + id);
 
     try {
         const pedido = await Pedido.findById(id);
 
         if (pedido.idMensajeTelegram && pedido.idTelegram) {
             await deleteMessageWithId(pedido.idTelegram, pedido.idMensajeTelegram);
-          }
+        }
 
         if (!pedido) {
             const error = new Error("Pedido no encontrado");
@@ -975,10 +982,16 @@ const marcarPedidoEntregado = async (req, res) => {
         pedido.horaEntrega = new Date().toISOString();
         const pedidoGuardado = await pedido.save();
 
-        const horaEntregaFormateada = formatHoraEntrega(pedido.horaEntrega);
+        // Usa moment para formatear la hora de entrega
+        const horaEntregaFormateada = moment(pedido.horaEntrega)
+            .locale('es')
+            .format('HH:mm:ss');
 
         if (pedido.idTelegram) {
-            const mensaje = await sendMessageWithId(pedido.idTelegram, `✅Pedido entregado:\n\nHora: ${pedido.hora}\nDireccion: ${pedido.direccion}\n\nha sido entregado con éxito a las:\n${horaEntregaFormateada}.`);
+            const mensaje = await sendMessageWithId(
+                pedido.idTelegram,
+                `✅Pedido entregado:\n\nHora: ${pedido.hora}\nDireccion: ${pedido.direccion}\n\nha sido entregado con éxito a las:\n${horaEntregaFormateada}.`
+            );
             pedido.idMensajeTelegram = mensaje.message_id;
             await pedido.save();
         } else {
@@ -991,6 +1004,7 @@ const marcarPedidoEntregado = async (req, res) => {
         res.status(500).json({ msg: "Error interno del servidor" });
     }
 };
+
 
 
 
