@@ -963,15 +963,19 @@ const actualizarCoordenadasPedido = async (req, res) => {
 const marcarPedidoEntregado = async (req, res) => {
     const { id } = req.params;
 
-    console.log("driver: " + req.body.driver);
-    console.log("idPedido: " + id);
+    console.log("driver: " +req.body.driver);
+    console.log("idPedido: "+ id);
+
+    
+
+    
 
     try {
         const pedido = await Pedido.findById(id);
 
         if (pedido.idMensajeTelegram && pedido.idTelegram) {
             await deleteMessageWithId(pedido.idTelegram, pedido.idMensajeTelegram);
-        }
+          }
 
         if (!pedido) {
             const error = new Error("Pedido no encontrado");
@@ -982,16 +986,10 @@ const marcarPedidoEntregado = async (req, res) => {
         pedido.horaEntrega = new Date().toISOString();
         const pedidoGuardado = await pedido.save();
 
-        // Usa moment para formatear la hora de entrega
-        const horaEntregaFormateada = moment(pedido.horaEntrega)
-            .locale('es')
-            .format('HH:mm:ss');
+        const horaEntregaFormateada = formatHoraEntrega(pedido.horaEntrega);
 
         if (pedido.idTelegram) {
-            const mensaje = await sendMessageWithId(
-                pedido.idTelegram,
-                `✅Pedido entregado:\n\nHora: ${pedido.hora}\nDireccion: ${pedido.direccion}\n\nha sido entregado con éxito a las:\n${horaEntregaFormateada}.`
-            );
+            const mensaje = await sendMessageWithId(pedido.idTelegram, `✅Pedido entregado:\n\nHora: ${pedido.hora}\nDireccion: ${pedido.direccion}\n\nha sido entregado con éxito a las:\n${horaEntregaFormateada}.`);
             pedido.idMensajeTelegram = mensaje.message_id;
             await pedido.save();
         } else {
@@ -1004,7 +1002,6 @@ const marcarPedidoEntregado = async (req, res) => {
         res.status(500).json({ msg: "Error interno del servidor" });
     }
 };
-
 
 
 
