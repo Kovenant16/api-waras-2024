@@ -69,7 +69,6 @@ const obtenerPedidosNoEntregados = async (req, res) => {
             hora: 1  // Orden ascendente por el campo 'hora'
         });
     res.json(pedidos);
-    console.log("obtenido todos los pedidos no entregados");
 };
 
 const obtenerPedidosNoEntregadosPorLocal = async (req, res) => {
