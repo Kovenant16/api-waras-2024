@@ -23,7 +23,7 @@ import {
     desactivarUsuario,
     activarUsuario,
     obtenerEstados,
-    liberarUsuario
+    liberarUsuario,
 } from "../controllers/usuarioController.js";
 
 import checkAuth from "../middleware/checkAuth.js";

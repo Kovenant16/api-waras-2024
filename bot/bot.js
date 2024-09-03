@@ -5,6 +5,22 @@ import { obtenerMotorizadosActivosYEnviarMensaje } from "../controllers/usuarioC
 
 const bot = new Telegraf('7417968430:AAFcvygubDqlXH7FXoXg8R-9NdR0oS18KGo')
 
+
+// Comprueba si la variable de entorno es 'production'
+if (process.env.TELEGRAM_BOT_ENV === 'production') {
+  bot.launch()
+    .then(() => {
+      console.log('Bot launched successfully in production');
+    })
+    .catch((err) => {
+      console.error('Error launching bot:', err);
+    });
+} else {
+  console.log('Bot is not launched in development mode');
+}
+
+
+
 bot.start((ctx) => {
   const userId = ctx.chat.id;
   ctx.reply(`Hola ${ctx.chat.first_name}, para comenzar te proporcionaré tu ID de Telegram, el cual debes enviar a central para poder agendarlo.`);
