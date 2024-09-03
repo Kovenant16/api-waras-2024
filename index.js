@@ -9,7 +9,7 @@ import clienteRoutes from "./routes/clienteRoutes.js";
 import productoRoutes from "./routes/productoRoutes.js"
 import categoriaRoutes from "./routes/categoriaRoutes.js"
 
-import bot from './bot/bot.js';
+//import bot from './bot/bot.js';
 
 
 
