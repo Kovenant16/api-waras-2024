@@ -247,24 +247,16 @@ const obtenerPedidoSocio = async (req, res) => {
                 path: "organizacion",
                 select: "-direccion -gps -telefonoUno -colaboradores -habilitado -createdAt -updatedAt -__v",
             },
-            select: "-password -confirmado -habilitado -token -createdAt -updatedAt -__v",
-        })
-        .populate({
-            path: "generadoPor",
-            select: "-password -confirmado -rol -habilitado -token -createdAt -updatedAt -__v",
-            populate: {
-                path: "organizacion",
-                select: "-direccion -gps -telefonoUno -colaboradores -habilitado -createdAt -updatedAt -__v",
-            },
+            select: "nombre telefono yape plin",
         })
         .populate({
             path: "local",
-            select: "-createdAt -habilitado -updatedAt",
+            select: "nombre",
         })
         .populate({
             path: "cliente",
             select: "",
-        }).limit(30);
+        }).select("-comVenta -generadoPor -gpsCreacion -horaCreacion -idMensajeTelegram -idTelegram -tipoPedido -updatedAt -__v")
 
     if (!pedido) {
         return res.status(404).json({ msg: "Pedido no encontrado" });
@@ -530,7 +522,7 @@ const obtenerPedidosPorTelefonoYLocal = async (req, res) => {
     }
 };
 
-const obtenerPedidosPorTelefonoYLocalYGpsVacio = async (req, res) => {
+const obtenerPedidosPorTelefonoYLocalYGpsVacio2 = async (req, res) => {
     try {
         let { telefono, localId } = req.body;
         telefono = telefono.replace(/\s+/g, '');
@@ -548,7 +540,7 @@ const obtenerPedidosPorTelefonoYLocalYGpsVacio = async (req, res) => {
         }
 
         const pedidos = await Pedido.find(filtro)
-            .select("delivery direccion fecha gps telefono")
+            .select("delivery direccion fecha telefono")
             .sort({ fecha: -1 })
             .limit(6);
 
@@ -558,6 +550,51 @@ const obtenerPedidosPorTelefonoYLocalYGpsVacio = async (req, res) => {
         res.status(500).json({ error: "Error al obtener los pedidos." });
     }
 };
+
+
+const obtenerPedidosPorTelefonoYLocalYGpsVacio = async (req, res) => {
+    try {
+        let { telefono, localId } = req.body;
+        telefono = telefono.replace(/\s+/g, '');
+
+        // Filtro por teléfono y localId
+        const filtro = {
+            telefono,
+            local: localId
+        };
+
+        // Buscar pedidos con el filtro
+        const pedidos = await Pedido.find(filtro)
+            .select("delivery direccion fecha gps telefono")
+            .sort({ fecha: -1 });
+
+        
+
+        // Utilizar JavaScript para encontrar el pedido con el delivery más alto para cada dirección
+        const pedidosConMaxDelivery = {};
+        pedidos.forEach(pedido => {
+            const direccion = pedido.direccion;
+            if (!pedidosConMaxDelivery[direccion] || 
+                parseFloat(pedido.delivery) > parseFloat(pedidosConMaxDelivery[direccion].delivery)) {
+                pedidosConMaxDelivery[direccion] = pedido;
+            }
+        });
+
+        // Convertir el objeto a un arreglo
+        const resultados = Object.values(pedidosConMaxDelivery);
+
+        res.json(resultados);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Error al obtener los pedidos." });
+    }
+};
+
+
+
+
+
+
 
 const obtenerPedidosSinGPS = async (req, res) => {
     try {

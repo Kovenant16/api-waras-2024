@@ -19,8 +19,6 @@ if (process.env.TELEGRAM_BOT_ENV === 'production') {
   console.log('Bot is not launched in development mode');
 }
 
-
-
 bot.start((ctx) => {
   const userId = ctx.chat.id;
   ctx.reply(`Hola ${ctx.chat.first_name}, para comenzar te proporcionaré tu ID de Telegram, el cual debes enviar a central para poder agendarlo.`);
