@@ -266,8 +266,8 @@ const autenticarUsuarioMotorizado = async (req, res) => {
             email: usuario.email,
             token: generarJWT(usuario._id),
             rol: usuario.rol,
-            horaActivacion:usuario.horaActivacion,
-            estadoUsuario:usuario.estadoUsuario
+            horaActivacion: usuario.horaActivacion,
+            estadoUsuario: usuario.estadoUsuario
         });
     } else {
         const error = new Error("El password es incorrecto");
@@ -379,6 +379,82 @@ const confirmarUsuario = async (req, res) => {
         console.log(error);
     }
 };
+
+const editarUsuario2 = async (req, res) => {
+    const { id } = req.params;  // Obtener el id del usuario a editar
+    const { nombre, email, telefono, yape, plin, urlPerfil, organizacion, whatsapp, rol, habilitado, estadoUsuario } = req.body;  // Obtener los datos del cuerpo de la petición
+
+    try {
+        // Buscar el usuario por su ID
+        const usuario = await Usuario.findById(id);
+
+        if (!usuario) {
+            const error = new Error("Usuario no encontrado");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        // Actualizar los campos del usuario si se proporcionaron
+        usuario.nombre = nombre || usuario.nombre;
+        usuario.email = email || usuario.email;
+        usuario.telefono = telefono || usuario.telefono;
+        usuario.yape = yape || usuario.yape;
+        usuario.plin = plin || usuario.plin;
+        usuario.organizacion = organizacion || usuario.organizacion;
+        usuario.whatsapp = whatsapp || usuario.whatsapp;
+        usuario.rol = rol || usuario.rol;
+        usuario.habilitado = habilitado !== undefined ? habilitado : usuario.habilitado;
+        usuario.estadoUsuario = estadoUsuario || usuario.estadoUsuario;
+
+        // Guardar los cambios
+        await usuario.save();
+        console.log(usuario);
+
+
+        res.json({ msg: "Usuario actualizado correctamente", usuario });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ msg: "Hubo un error al actualizar el usuario" });
+    }
+};
+
+
+const editarUsuario = async (req, res) => {
+    const { id } = req.params;  // Obtener el id del usuario a editar
+    const { nombre, email, telefono, yape, plin, urlPerfil, organizacion, whatsapp, rol, habilitado, estadoUsuario } = req.body;  // Obtener los datos del cuerpo de la petición
+
+    try {
+        // Buscar el usuario por su ID
+        const usuario = await Usuario.findById(id);
+
+        if (!usuario) {
+            const error = new Error("Usuario no encontrado");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        // Actualizar los campos del usuario si se proporcionaron
+        usuario.nombre = nombre || usuario.nombre;
+        usuario.email = email || usuario.email;
+        usuario.telefono = telefono || usuario.telefono;
+        usuario.yape = yape || usuario.yape;
+        usuario.plin = plin || usuario.plin;
+        usuario.organizacion = organizacion !== undefined ? organizacion : usuario.organizacion; // Verificación explícita para organización
+        usuario.whatsapp = whatsapp || usuario.whatsapp;
+        usuario.rol = rol || usuario.rol;
+        usuario.habilitado = habilitado !== undefined ? habilitado : usuario.habilitado;
+        usuario.estadoUsuario = estadoUsuario || usuario.estadoUsuario;
+
+        // Guardar los cambios
+        await usuario.save();
+        console.log(usuario);
+
+
+        res.json({ msg: "Usuario actualizado correctamente", usuario });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ msg: "Hubo un error al actualizar el usuario" });
+    }
+};
+
 
 const olvidePassword = async (req, res) => {
     const { email } = req.body;
@@ -514,6 +590,38 @@ const desactivarUsuario = async (req, res) => {
     }
 };
 
+const desactivarUsuarioPorAdmin = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const usuario = await Usuario.findById(id);
+
+        if (!usuario) {
+            const error = new Error("Usuario no encontrado");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        usuario.activo = false;
+        usuario.estadoUsuario = "Inactivo"
+        await usuario.save();
+
+        const nombreEnNegritasYMayusculas = `${usuario.nombre.toUpperCase()}`;
+
+        const mensaje = `🚫 *${nombreEnNegritasYMayusculas}* ha sido desactivado por el sistema.\n\n` +
+                        `Razón: _Inactividad_\n\n` +
+                        `Recuerda activarte unicamente cuando estés disponible`;
+
+        // Obtener motorizados activos y enviar mensaje de Telegram
+        //await obtenerMotorizadosActivosYEnviarMensaje();
+        await sendMessageWithId("-4112441362", mensaje);
+        //await sendMessageWithId("-4241205369", mensaje);
+
+        res.json({ msg: "Usuario desactivado correctamente" });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ msg: "Error al desactivar el usuario" });
+    }
+};
+
 const activarUsuario = async (req, res) => {
     const { id } = req.params;
 
@@ -569,14 +677,14 @@ const liberarUsuario = async (req, res) => {
 const obtenerMotorizadosLibreYEnviarMensaje = async (id) => {
     try {
         const motorizado = await Usuario.findById(id)
-        .select("nombre horaActivacion telefono") // Selecciona solo los campos necesarios
-        .sort({ horaActivacion: 1 }); // Ordena por horaActivacion, el más antiguo primero
+            .select("nombre horaActivacion telefono") // Selecciona solo los campos necesarios
+            .sort({ horaActivacion: 1 }); // Ordena por horaActivacion, el más antiguo primero
 
         // Crear el mensaje de Telegram con la lista de motorizados activos
-        
-        
-            let mensaje = ` ${motorizado.nombre} - Esta libre`;
-        
+
+
+        let mensaje = ` ${motorizado.nombre} - Esta libre`;
+
 
         // Enviar mensaje a Telegram
         await sendMessageWithId("-4112441362", mensaje); // Reemplaza "-4112441362" con el chat_id adecuado
@@ -618,8 +726,8 @@ export const obtenerMotorizadosActivosYEnviarMensaje = async () => {
             habilitado: true,
             activo: true
         })
-        .select("nombre horaActivacion  estadoUsuario") // Selecciona solo los campos necesarios
-        .sort({ horaActivacion: 1 }); // Ordena por horaActivacion, el más antiguo primero
+            .select("nombre horaActivacion  estadoUsuario") // Selecciona solo los campos necesarios
+            .sort({ horaActivacion: 1 }); // Ordena por horaActivacion, el más antiguo primero
 
         // Crear el mensaje de Telegram con la lista de motorizados activos
         let mensaje = "📋 Lista de motorizados activos:\n\n";
@@ -673,10 +781,25 @@ const obtenerEstados = async (req, res) => {
 const obtenerUsuarioPorEmail = async (req, res) => {
     const { email } = req.body;
 
-    const usuarios = await Usuario.findOne({ email })
+    const usuarios = await Usuario.findOne({ email }).select("-createdAt -horaActivacion -password -token -__v").populate("organizacion", "nombre idTelegram")
 
     res.json(usuarios)
 }
+
+const obtenerUltimosUsuarios = async (req, res) => {
+    try {
+        // Obtener los últimos 5 usuarios ordenados por la fecha de creación
+        const usuarios = await Usuario.find({})
+            .select("nombre email")
+            .sort({ createdAt: -1 }) // Ordenar por fecha de creación en orden descendente
+            .limit(5); // Limitar a los 5 más recientes
+
+        res.json(usuarios);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ msg: "Hubo un error al obtener los usuarios" });
+    }
+};
 
 export {
     registrarUsuario,
@@ -700,5 +823,8 @@ export {
     desactivarUsuario,
     activarUsuario,
     obtenerEstados,
-    liberarUsuario
+    liberarUsuario,
+    editarUsuario,
+    obtenerUltimosUsuarios,
+    desactivarUsuarioPorAdmin
 };
