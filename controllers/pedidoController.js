@@ -864,26 +864,7 @@ const liberarPedido = async (req, res) => {
     }
 };
 
-const marcarPedidoEnLocal2 = async (req, res) => {
-    const { id } = req.params;
 
-    try {
-        const pedido = await Pedido.findById(id);
-
-        if (!pedido) {
-            const error = new Error("Pedido no encontrado");
-            return res.status(404).json({ msg: error.message });
-        }
-
-        pedido.estadoPedido = "en local";
-        pedido.horaLlegadaLocal = new Date().toISOString(); // Cambiar el estado del pedido
-        const pedidoGuardado = await pedido.save();
-        res.json(pedidoGuardado);
-    } catch (error) {
-        console.log(error);
-        res.status(500).json({ msg: "Error interno del servidor" });
-    }
-};
 
 const marcarPedidoEnLocal = async (req, res) => {
     const { id } = req.params;
@@ -965,26 +946,7 @@ const actualizarCoordenadasPedido = async (req, res) => {
 };
 
 
-// const marcarPedidoEntregado = async (req, res) => {
-//     const { id } = req.params;
 
-//     try {
-//         const pedido = await Pedido.findById(id);
-
-//         if (!pedido) {
-//             const error = new Error("Pedido no encontrado");
-//             return res.status(404).json({ msg: error.message });
-//         }
-
-//         pedido.estadoPedido = "entregado";
-//         pedido.horaEntrega = new Date().toISOString();  // Cambiar el estado del pedido
-//         const pedidoGuardado = await pedido.save();
-//         res.json(pedidoGuardado);
-//     } catch (error) {
-//         console.log(error);
-//         res.status(500).json({ msg: "Error interno del servidor" });
-//     }
-// };
 
 const marcarPedidoEntregado = async (req, res) => {
     const { id } = req.params;

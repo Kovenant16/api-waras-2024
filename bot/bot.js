@@ -156,7 +156,7 @@ export const sendMessage = (message, chatId) => {
 
 export const sendMessageWithId = async (chatId, message) => {
   try {
-    const response = await bot.telegram.sendMessage(chatId, message);
+    const response = await bot.telegram.sendMessage(chatId, message, {parse_mode:"Markdown"});
     console.log('Message sent successfully');
     return response; // Devuelve la respuesta que contiene el ID del mensaje
   } catch (err) {

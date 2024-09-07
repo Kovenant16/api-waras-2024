@@ -24,6 +24,9 @@ import {
     activarUsuario,
     obtenerEstados,
     liberarUsuario,
+    editarUsuario,
+    obtenerUltimosUsuarios,
+    desactivarUsuarioPorAdmin
 } from "../controllers/usuarioController.js";
 
 import checkAuth from "../middleware/checkAuth.js";
@@ -33,6 +36,8 @@ import checkAuth from "../middleware/checkAuth.js";
 router.post("/", registrarUsuario)
 router.put("/toggleActivarUsuario", toggleActivarUsuario);
 router.put("/activarUsuario/:id", activarUsuario);
+router.put("/desactivarUsuarioPorAdmin/:id",checkAuth, desactivarUsuarioPorAdmin);
+router.put("/editarUsuario/:id",checkAuth, editarUsuario);
 router.put("/liberarUsuario/:id", liberarUsuario);
 router.put("/desactivarUsuario/:id", desactivarUsuario);
 router.post("/registrarAdmin", registrarUsuarioAdmin);
@@ -52,5 +57,6 @@ router.post("/olvide-password/:token", nuevoPassword);
 router.post("/buscarUsuarioPorEmail", obtenerUsuarioPorEmail)
 router.get("/perfil", checkAuth, perfil);
 router.get("/obtenerEstados", checkAuth, obtenerEstados);
+router.get("/obtenerUltimosUsuarios", checkAuth, obtenerUltimosUsuarios);
 
 export default router;

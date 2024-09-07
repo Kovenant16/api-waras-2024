@@ -28,6 +28,14 @@ const usuarioSchema = mongoose.Schema(
             trim: true,
             unique: true,
         },
+        yape: {
+            type: String,
+            trim: true,
+        },
+        plin: {
+            type: String,
+            trim: true,
+        },
         urlPerfil: {
             type: String,
             trim: true,
