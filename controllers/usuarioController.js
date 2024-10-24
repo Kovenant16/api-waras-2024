@@ -417,7 +417,6 @@ const editarUsuario2 = async (req, res) => {
     }
 };
 
-
 const editarUsuario = async (req, res) => {
     const { id } = req.params;  // Obtener el id del usuario a editar
     const { nombre, email, telefono, yape, plin, urlPerfil, organizacion, whatsapp, rol, habilitado, estadoUsuario } = req.body;  // Obtener los datos del cuerpo de la petición
@@ -454,7 +453,6 @@ const editarUsuario = async (req, res) => {
         res.status(500).json({ msg: "Hubo un error al actualizar el usuario" });
     }
 };
-
 
 const olvidePassword = async (req, res) => {
     const { email } = req.body;

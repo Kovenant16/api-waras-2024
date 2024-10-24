@@ -10,10 +10,10 @@ const pedidosSchema = mongoose.Schema(
             type: String,
             required: true,
         },
-        local: {
+        local: [{
             type: mongoose.Schema.Types.ObjectId,
             ref: "Local",
-        },
+        }],
         cliente: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Cliente",
@@ -32,7 +32,7 @@ const pedidosSchema = mongoose.Schema(
         tipoPedido: {
             type: String,
             enum:["express", "compras", "paqueteria", "app"],
-            default: "express"
+            default: "express",
         },
         telefono: {
             type: String,
@@ -79,6 +79,9 @@ const pedidosSchema = mongoose.Schema(
             default: "sin asignar",
             trim: true,
         },
+        pagaCon: {
+            type: Number,
+        },
         horaCreacion: {
             type: String,
         },
@@ -97,6 +100,31 @@ const pedidosSchema = mongoose.Schema(
             type: String, // El ID del chat en Telegram es una cadena
             default: null,
         },
+        pedido: [
+            {
+                cantidad: {
+                    type: Number,
+                    required: true,
+                },
+                opcion: {
+                    type: String,
+                    trim: true,
+                },
+                price: {
+                    type: Number,
+                    required: true,
+                },
+                totalPrice: {
+                    type: Number,
+                    required: true,
+                },
+                producto: {
+                    type: mongoose.Schema.Types.ObjectId,
+                    ref: "Producto",
+                    required: true,
+                },
+            },
+        ],
     },
     {
         timestamps: true,
