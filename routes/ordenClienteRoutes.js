@@ -1,6 +1,6 @@
 import express from "express";
 
-import { nuevaOrdenCliente,obtenerOrdenesClientes } from "../controllers/OrdenClienteController.js";
+import { obtenerOrdenesClientes,nuevaOrdenCliente } from "../controllers/OrdenClienteController.js";
 import checkAuth from "../middleware/checkAuth.js";
 
 const router = express.Router();
