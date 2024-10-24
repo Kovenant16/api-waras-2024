@@ -6,7 +6,7 @@ import checkAuth from "../middleware/checkAuth.js";
 
 const router  = express.Router();
 
-router.post("/nuevaOrdenCliente", checkAuth, nuevaOrdenCliente)
+router.post("/nuevaOrdenCliente",  nuevaOrdenCliente)
 router.post("/obtenerOrdenesCliente", checkAuth, obtenerOrdenesClientes)
 
 
