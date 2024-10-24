@@ -5,6 +5,7 @@ import Cliente from "../models/Cliente.js";
 import { Server } from 'socket.io';
 import { sendMessage, sendMessageWithId, deleteMessageWithId } from "../bot/bot.js";
 import moment from 'moment-timezone';
+import { populate } from "dotenv";
 
 const io = new Server(/* Parámetros del servidor, como la instancia de tu servidor HTTP */);
 
@@ -89,23 +90,36 @@ const obtenerPedidosNoEntregadosSinDriver = async (req, res) => {
   };
 
   const obtenerPedidosAsignados = async (req, res) => {
-
-    //return console.log(req.usuario._id);
-    
     const pedidos = await Pedido.find({
         estadoPedido: ["pendiente", "recogido", "sin asignar", "en local"],
-      driver: req.usuario._id
-    })
+        driver: req.usuario._id
+      })
       .populate({
         path: "generadoPor",
         select: "nombre"
       })
-      .populate({path:"driver", select:"nombre"})
-      .populate({ path: "local", select: "nombre gps" })
-      .select("-createdAt -gpsCreacion -horaCreacion -updatedAt -__v -tipoPedido")
+      .populate({
+        path: "driver",
+        select: "nombre"
+      })
+      .populate({
+        path: "local",
+        select: "nombre gps"
+      })
+      .populate({
+        path: "pedido.producto", // Aquí es donde haces el populate de productos
+        select: "nombre precio local",
+        populate: { // Aquí se hace el populate del campo local dentro de producto
+          path: "local", // Asegúrate de que el campo local en producto sea una referencia válida
+          select: "nombre" // Selecciona los campos que necesitas
+        }
+      })
+      .select("-createdAt -gpsCreacion -horaCreacion -updatedAt -__v")
       .sort({ hora: 1 }); // Orden ascendente por el campo 'hora'
+  
     res.json(pedidos);
   };
+  
 
 const obtenerPedidosNoEntregadosPorLocal = async (req, res) => {
     const { localId } = req.params;  // Asumiendo que el localId se pasa como un parámetro en la URL

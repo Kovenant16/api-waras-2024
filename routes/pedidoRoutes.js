@@ -59,7 +59,6 @@ router.post('/busquedaPorTelefono', checkAuth, obtenerPedidosPorTelefono)
 router.post('/busquedaPorTelefonoYLocal', checkAuth, obtenerPedidosPorTelefonoYLocal)
 router.post('/busquedaPorTelefonoYLocalSinGps', checkAuth, obtenerPedidosPorTelefonoYLocalYGpsVacio)
 router.post('/pedidosSocio', checkAuth, obtenerPedidosSocio)
-router.post('/pedidosMotorizado', obtenerPedidosMotorizado)
 router.get('/pedidoSocio/:id', checkAuth, obtenerPedidoSocio)
 router.post("/", checkAuth, nuevoPedido);
 router.post("/obtenerPedidosPorTelefono", checkAuth,obtenerPedidosPorTelefonoConGps)
