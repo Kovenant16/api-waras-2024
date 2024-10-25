@@ -474,7 +474,7 @@ const obtenerPedidosPorFecha = async (req, res) => {
             path: "generadoPor",
             select: "nombre"
         })
-        .select("-detallePedido -gps -gpsCreacion -horaCreacion -medioDePago -tipoPedido");
+        .select("-detallePedido -gps -gpsCreacion -horaCreacion -medioDePago");
 
     res.json(pedidos);
 };
