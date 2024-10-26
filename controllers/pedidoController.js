@@ -84,7 +84,7 @@ const obtenerPedidosNoEntregadosSinDriver = async (req, res) => {
         select: "nombre"
       })
       .populate({ path: "local", select: "nombre gps" })
-      .select("-createdAt -gpsCreacion -horaCreacion -updatedAt -__v -tipoPedido")
+      .select("-createdAt -gpsCreacion -horaCreacion -updatedAt -__v")
       .sort({ hora: 1 }); // Orden ascendente por el campo 'hora'
     res.json(pedidos);
   };
