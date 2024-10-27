@@ -24,7 +24,7 @@ router.get("/obtenerProducto/:productoId", obtenerProductoPorId)
 router.post("/agregarProducto", agregarProducto)
 router.put("/:id", editarProducto);
 router.delete("/:id", eliminarProducto)
-router.post("/obtenerProductosPorTienda", obtenerProductosPorTiendaSinVersion)
+router.post("/obtenerProductosPorTienda", obtenerProductosPorTienda)
 router.post("/obtenerProductosPorTiendaAdmin", obtenerProductosPorTiendaAdmin)
 router.post("/obtenerProductosPorCategoria", obtenerProductosPorCategoria)
 router.put("/toggleDisponibilidad/:id", toggleDisponibilidadProducto);

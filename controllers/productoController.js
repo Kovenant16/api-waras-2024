@@ -42,9 +42,9 @@ const obtenerProductosPorTienda = async (req, res) => {
     console.log("Versión proporcionada:", version);
 
     try {
-        // Verifica si idLocal y version son valores válidos antes de realizar la consulta
-        if (!idLocal || version === undefined) {
-            return res.status(400).json({ error: "ID de tienda o versión no proporcionado" });
+        // Verifica si idLocal es válido antes de realizar la consulta
+        if (!idLocal) {
+            return res.status(400).json({ error: "ID de tienda no proporcionado" });
         }
 
         // Encuentra el local para obtener el valor de versionCarta
@@ -54,29 +54,45 @@ const obtenerProductosPorTienda = async (req, res) => {
             return res.status(404).json({ error: "Tienda no encontrada" });
         }
 
-        // Compara version proporcionada con versionCarta del local
-        if (version !== local.versionCarta) {
-            return res.status(204).send(); // No retorna nada si la versión es igual o mayor
+        // Si la versión es null, devuelve todos los productos junto con la versión de carta
+        if (version === null) {
+            const productos = await Producto.find({ local: idLocal })
+                .select('categoria cover descripcion nombre precio taper disponibilidad')
+                .sort({ categoria: 'asc' });
+
+            if (!productos || productos.length === 0) {
+                return res.status(404).json({ error: "No se encontraron productos para esta tienda" });
+            }
+
+            return res.json({ productos, versionCarta: local.versionCarta });
         }
 
-        // Utiliza async/await para esperar la consulta a la base de datos
+        // Compara la versión proporcionada con versionCarta del local
+        if (version === local.versionCarta) {
+            // Si la versión es igual, responde que la carta está actualizada
+            return res.status(204).send(); // No se retornan productos si la versión es la misma
+        }
+
+        // Si las versiones no coinciden, devuelve los productos y la versión actualizada
         const productos = await Producto.find({ local: idLocal })
             .select('categoria cover descripcion nombre precio taper disponibilidad')
-            .sort({ categoria: 'asc' }); // Ordena los productos por categoría en orden ascendente
+            .sort({ categoria: 'asc' });
 
         if (!productos || productos.length === 0) {
             return res.status(404).json({ error: "No se encontraron productos para esta tienda" });
         }
 
-        // Envía la respuesta con los productos encontrados
-        res.json(productos);
+        // Envía la respuesta con los productos y la versión de carta
+        res.json({ productos, versionCarta: local.versionCarta });
+        console.log("Productos obtenidos:", productos.length);
 
-        console.log("productos obtenidos", productos.length);
     } catch (error) {
         console.error("Error al obtener productos:", error);
         res.status(500).json({ error: "Error interno del servidor" });
     }
 };
+
+
 
 const obtenerProductosPorTiendaSinVersion = async (req, res) => {
     const { idLocal } = req.body;
@@ -228,7 +244,12 @@ const agregarProducto = async (req, res) => {
         const productoAlmacenado = await nuevoProducto.save();
 
         // Incrementar versionCarta del local
-        await Local.findByIdAndUpdate(localId, { $inc: { versionCarta: 1 } });
+        const local = await Local.findById(localId);
+        if (local) {
+            await Local.findByIdAndUpdate(localId, { 
+                $set: { versionCarta: (local.versionCarta || 0) + 1 }
+            });
+        }
 
         res.status(201).json(productoAlmacenado);
     } catch (error) {
@@ -236,6 +257,7 @@ const agregarProducto = async (req, res) => {
         res.status(500).json({ mensaje: 'Error en el servidor' });
     }
 };
+
 
 
 
@@ -254,7 +276,12 @@ const eliminarProducto = async (req, res) => {
         await producto.deleteOne();
 
         // Incrementar versionCarta del local
-        await Local.findByIdAndUpdate(producto.local, { $inc: { versionCarta: 1 } });
+        const local = await Local.findById(producto.local);
+        if (local) {
+            await Local.findByIdAndUpdate(local._id, { 
+                $set: { versionCarta: (local.versionCarta || 0) + 1 }
+            });
+        }
 
         res.status(200).json({ mensaje: 'Producto eliminado con éxito' });
     } catch (error) {
@@ -262,6 +289,7 @@ const eliminarProducto = async (req, res) => {
         res.status(500).json({ mensaje: 'Error en el servidor' });
     }
 };
+
 
 
 const editarProducto = async (req, res) => {
@@ -274,6 +302,7 @@ const editarProducto = async (req, res) => {
             return res.status(404).json({ msg: "Producto no encontrado" });
         }
 
+        // Actualizar los campos del producto
         producto.nombre = req.body.nombre || producto.nombre;
         producto.categoria = req.body.categoria || producto.categoria;
         producto.descripcion = req.body.descripcion || producto.descripcion;
@@ -287,7 +316,12 @@ const editarProducto = async (req, res) => {
         const productoActualizado = await producto.save();
 
         // Incrementar versionCarta del local
-        await Local.findByIdAndUpdate(producto.local, { $inc: { versionCarta: 1 } });
+        const local = await Local.findById(producto.local);
+        if (local) {
+            await Local.findByIdAndUpdate(local._id, { 
+                $set: { versionCarta: (local.versionCarta || 0) + 1 }
+            });
+        }
 
         res.json(productoActualizado);
     } catch (error) {
@@ -295,6 +329,7 @@ const editarProducto = async (req, res) => {
         res.status(500).json({ msg: "Error al editar el producto" });
     }
 };
+
 
 
 const toggleDisponibilidadProducto = async (req, res) => {
