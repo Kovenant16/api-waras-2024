@@ -63,7 +63,8 @@ const localSchema = mongoose.Schema(
             type:String
         },
         versionCarta:{
-            type:Number
+            type:Number,
+            default:1
         },
         idTelegram:{
             type:String

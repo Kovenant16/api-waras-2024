@@ -34,8 +34,26 @@ const obtenerOrdenesClientes = async (req, res) => {
     }
 };
 
+const borrarOrdenCliente = async (req, res) => {
+    try {
+        const { id } = req.params; // Se espera recibir el ID de la orden en los parámetros de la solicitud
+
+        // Busca y elimina la orden por su ID
+        const ordenEliminada = await OrdenCliente.findByIdAndDelete(id);
+
+        if (!ordenEliminada) {
+            return res.status(404).json({ message: 'Orden de cliente no encontrada' });
+        }
+
+        res.status(200).json({ message: 'Orden de cliente eliminada con éxito', ordenEliminada });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error al eliminar la orden de cliente' });
+    }
+};
+
 
 
 export {
-    nuevaOrdenCliente,obtenerOrdenesClientes
+    nuevaOrdenCliente,obtenerOrdenesClientes, borrarOrdenCliente
 };
