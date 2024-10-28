@@ -108,10 +108,10 @@ const obtenerPedidosNoEntregadosSinDriver = async (req, res) => {
       })
       .populate({
         path: "pedido.producto", // Aquí es donde haces el populate de productos
-        select: "nombre precio local",
+        select: "nombre precio local categoria taper",
         populate: { // Aquí se hace el populate del campo local dentro de producto
           path: "local", // Asegúrate de que el campo local en producto sea una referencia válida
-          select: "nombre" // Selecciona los campos que necesitas
+          select: "nombre adicionalPorTaper " // Selecciona los campos que necesitas
         }
       })
       .select("-createdAt -gpsCreacion -horaCreacion -updatedAt -__v")
