@@ -67,9 +67,9 @@ const obtenerProductosPorTienda = async (req, res) => {
             return res.json({ productos, versionCarta: local.versionCarta });
         }
 
-        // Compara la versión proporcionada con versionCarta del local
-        if (version === local.versionCarta) {
-            // Si la versión es igual, responde que la carta está actualizada
+        // Compara la versión proporcionada con versionCarta del local después de convertir ambos valores a número
+        if (Number(version) === Number(local.versionCarta)) {
+            console.log("Las versiones coinciden. La carta está actualizada.");
             return res.status(204).send(); // No se retornan productos si la versión es la misma
         }
 
@@ -91,6 +91,32 @@ const obtenerProductosPorTienda = async (req, res) => {
         res.status(500).json({ error: "Error interno del servidor" });
     }
 };
+
+const obtenerVersionCarta = async (req, res) => {
+    const { idLocal } = req.body;
+
+    try {
+        // Verifica si idLocal es válido antes de realizar la consulta
+        if (!idLocal) {
+            return res.status(400).json({ error: "ID de tienda no proporcionado" });
+        }
+
+        // Encuentra el local para obtener el valor de versionCarta
+        const local = await Local.findById(idLocal).select('versionCarta');
+        
+        if (!local) {
+            return res.status(404).json({ error: "Tienda no encontrada" });
+        }
+
+        // Devuelve la versión de la carta
+        return res.json({ versionCarta: local.versionCarta });
+
+    } catch (error) {
+        console.error("Error al obtener la versión de la carta:", error);
+        res.status(500).json({ error: "Error interno del servidor" });
+    }
+};
+
 
 
 
@@ -367,6 +393,7 @@ export {
     obtenerTiendasTotales,
     toggleDisponibilidadProducto,
     obtenerProductosPorTiendaAdmin,
-    obtenerProductosPorTiendaSinVersion
+    obtenerProductosPorTiendaSinVersion,
+    obtenerVersionCarta
     
 };
