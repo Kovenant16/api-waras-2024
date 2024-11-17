@@ -65,11 +65,9 @@ const ordenClienteSchema = mongoose.Schema(
         },
         telefono: {
             type: String,
-            required: true,
         },
         direccion: {
             type: String,
-            required: true,
         },
         coordenadas: {
             type: String,

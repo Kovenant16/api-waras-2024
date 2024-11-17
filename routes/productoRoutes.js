@@ -11,14 +11,16 @@ import {
     obtenerProductoPorId,
     toggleDisponibilidadProducto,
     obtenerProductosPorTiendaAdmin,
-    obtenerProductosPorTiendaSinVersion,
-    obtenerVersionCarta
+    obtenerTiendasMenuDiario,
+    obtenerVersionCarta,
+    cambiarEstadoTaper
 } from '../controllers/productoController.js'
 import checkAuth from '../middleware/checkAuth.js';
 
 const router = express.Router();
 
 router.get("/tiendas", obtenerTiendas)
+router.get("/tiendasMenuDiario", obtenerTiendasMenuDiario)
 router.get("/tiendasTotales", obtenerTiendasTotales)
 router.get("/:ruta", obtenerTienda)
 router.get("/obtenerProducto/:productoId", obtenerProductoPorId)
@@ -30,5 +32,6 @@ router.post("/obtenerVersionCarta", obtenerVersionCarta)
 router.post("/obtenerProductosPorTiendaAdmin", obtenerProductosPorTiendaAdmin)
 router.post("/obtenerProductosPorCategoria", obtenerProductosPorCategoria)
 router.put("/toggleDisponibilidad/:id", toggleDisponibilidadProducto);
+router.patch('/:id/taper', cambiarEstadoTaper);
 
 export default router;
