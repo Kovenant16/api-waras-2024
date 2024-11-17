@@ -9,8 +9,21 @@ const obtenerTiendas = async (req, res) => {
     console.log('tiendas obtenidas');
 }
 
+const obtenerTiendasMenuDiario = async (req, res) => {
+    try {
+        const tiendas = await Local.find({ tienda: true, menuDiario: true })
+            .select("nombre direccion gps urlLogo diasAbiertos telefonoUno ruta horario ubicacion tiempoPreparacion horaInicioFin adicionalPorTaper tags");
+
+        res.json(tiendas);
+        console.log('Tiendas con menú diario obtenidas');
+    } catch (error) {
+        console.error('Error al obtener tiendas:', error);
+        res.status(500).json({ message: "Error al obtener tiendas" });
+    }
+};
+
 const obtenerTiendasTotales = async (req, res) => {
-    const tiendas = await Local.find().select("nombre direccion gps urlLogo diasAbiertos telefonoUno ruta horario ubicacion tiempoPreparacion horaInicioFin adicionalPorTaper tags").sort({nombre:1});
+    const tiendas = await Local.find().select("nombre direccion gps urlLogo diasAbiertos telefonoUno ruta horario ubicacion tiempoPreparacion horaInicioFin adicionalPorTaper tags").sort({ nombre: 1 });
     res.json(tiendas);
 }
 
@@ -103,7 +116,7 @@ const obtenerVersionCarta = async (req, res) => {
 
         // Encuentra el local para obtener el valor de versionCarta
         const local = await Local.findById(idLocal).select('versionCarta');
-        
+
         if (!local) {
             return res.status(404).json({ error: "Tienda no encontrada" });
         }
@@ -116,9 +129,6 @@ const obtenerVersionCarta = async (req, res) => {
         res.status(500).json({ error: "Error interno del servidor" });
     }
 };
-
-
-
 
 const obtenerProductosPorTiendaSinVersion = async (req, res) => {
     const { idLocal } = req.body;
@@ -149,7 +159,6 @@ const obtenerProductosPorTiendaSinVersion = async (req, res) => {
     }
 };
 
-
 const obtenerProductosPorTiendaAdmin = async (req, res) => {
     const { idLocal } = req.body;
     console.log("ID de la tienda:", idLocal);
@@ -162,7 +171,7 @@ const obtenerProductosPorTiendaAdmin = async (req, res) => {
 
         // Utiliza async/await para esperar la consulta a la base de datos
         const productos = await Producto.find({ local: idLocal })
-            .select('categoria cover descripcion nombre precio taper disponibilidad')
+            .select('categoria nombre precio taper disponibilidad')
             .sort({ categoria: 'asc' }); // Ordena los productos por categoría en orden ascendente
 
         if (!productos || productos.length === 0) {
@@ -178,7 +187,6 @@ const obtenerProductosPorTiendaAdmin = async (req, res) => {
         res.status(500).json({ error: "Error interno del servidor" });
     }
 };
-
 
 const obtenerProductoPorId = async (req, res) => {
     const { productoId } = req.params; // Cambiado de req.body a req.params para obtener el ID desde los parámetros de la URL
@@ -199,14 +207,12 @@ const obtenerProductoPorId = async (req, res) => {
         // Envía la respuesta con el producto encontrado
         res.json(producto);
 
-        
+
     } catch (error) {
         console.error("Error al obtener producto por ID:", error);
         res.status(500).json({ error: "Error interno del servidor" });
     }
 };
-
-
 
 const obtenerProductosPorCategoria = async (req, res) => {
     const { categoria } = req.body;
@@ -272,7 +278,7 @@ const agregarProducto = async (req, res) => {
         // Incrementar versionCarta del local
         const local = await Local.findById(localId);
         if (local) {
-            await Local.findByIdAndUpdate(localId, { 
+            await Local.findByIdAndUpdate(localId, {
                 $set: { versionCarta: (local.versionCarta || 0) + 1 }
             });
         }
@@ -283,10 +289,6 @@ const agregarProducto = async (req, res) => {
         res.status(500).json({ mensaje: 'Error en el servidor' });
     }
 };
-
-
-
-
 
 const eliminarProducto = async (req, res) => {
     const { id } = req.params;
@@ -304,7 +306,7 @@ const eliminarProducto = async (req, res) => {
         // Incrementar versionCarta del local
         const local = await Local.findById(producto.local);
         if (local) {
-            await Local.findByIdAndUpdate(local._id, { 
+            await Local.findByIdAndUpdate(local._id, {
                 $set: { versionCarta: (local.versionCarta || 0) + 1 }
             });
         }
@@ -315,8 +317,6 @@ const eliminarProducto = async (req, res) => {
         res.status(500).json({ mensaje: 'Error en el servidor' });
     }
 };
-
-
 
 const editarProducto = async (req, res) => {
     const { id } = req.params;
@@ -344,7 +344,7 @@ const editarProducto = async (req, res) => {
         // Incrementar versionCarta del local
         const local = await Local.findById(producto.local);
         if (local) {
-            await Local.findByIdAndUpdate(local._id, { 
+            await Local.findByIdAndUpdate(local._id, {
                 $set: { versionCarta: (local.versionCarta || 0) + 1 }
             });
         }
@@ -356,7 +356,36 @@ const editarProducto = async (req, res) => {
     }
 };
 
+const cambiarEstadoTaper = async (req, res) => {
+    const { id } = req.params;
+    const { taper } = req.body; // Recibe el nuevo estado de taper en el cuerpo de la solicitud
 
+    try {
+        const producto = await Producto.findById(id);
+
+        if (!producto) {
+            return res.status(404).json({ msg: "Producto no encontrado" });
+        }
+
+        // Actualiza solo el campo taper
+        producto.taper = taper;
+
+        const productoActualizado = await producto.save();
+
+        // Incrementar versionCarta del local si taper se cambia
+        const local = await Local.findById(producto.local);
+        if (local) {
+            await Local.findByIdAndUpdate(local._id, {
+                $set: { versionCarta: (local.versionCarta || 0) + 1 }
+            });
+        }
+
+        res.json(productoActualizado);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ msg: "Error al cambiar el estado de taper" });
+    }
+};
 
 const toggleDisponibilidadProducto = async (req, res) => {
     const { id } = req.params;
@@ -394,6 +423,8 @@ export {
     toggleDisponibilidadProducto,
     obtenerProductosPorTiendaAdmin,
     obtenerProductosPorTiendaSinVersion,
-    obtenerVersionCarta
-    
+    obtenerVersionCarta,
+    cambiarEstadoTaper,
+    obtenerTiendasMenuDiario
+
 };
