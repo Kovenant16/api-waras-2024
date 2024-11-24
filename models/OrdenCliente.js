@@ -65,6 +65,7 @@ const ordenClienteSchema = mongoose.Schema(
         },
         telefono: {
             type: String,
+            default:"",
         },
         direccion: {
             type: String,
