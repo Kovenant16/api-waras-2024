@@ -74,52 +74,52 @@ const obtenerPedidosNoEntregados = async (req, res) => {
 
 const obtenerPedidosNoEntregadosSinDriver = async (req, res) => {
     const pedidos = await Pedido.find({
-      estadoPedido: ["pendiente", "recogido", "sin asignar", "en local"],
-      $or: [
-        { driver: { $exists: false } },
-    ]
+        estadoPedido: ["pendiente", "recogido", "sin asignar", "en local"],
+        $or: [
+            { driver: { $exists: false } },
+        ]
     })
-      .populate({
-        path: "generadoPor",
-        select: "nombre"
-      })
-      .populate({ path: "local", select: "nombre gps" })
-      .select("-createdAt -gpsCreacion -horaCreacion -updatedAt -__v")
-      .sort({ hora: 1 }); // Orden ascendente por el campo 'hora'
+        .populate({
+            path: "generadoPor",
+            select: "nombre"
+        })
+        .populate({ path: "local", select: "nombre gps" })
+        .select("-createdAt -gpsCreacion -horaCreacion -updatedAt -__v")
+        .sort({ hora: 1 }); // Orden ascendente por el campo 'hora'
     res.json(pedidos);
-  };
+};
 
-  const obtenerPedidosAsignados = async (req, res) => {
+const obtenerPedidosAsignados = async (req, res) => {
     const pedidos = await Pedido.find({
         estadoPedido: ["pendiente", "recogido", "sin asignar", "en local"],
         driver: req.usuario._id
-      })
-      .populate({
-        path: "generadoPor",
-        select: "nombre"
-      })
-      .populate({
-        path: "driver",
-        select: "nombre"
-      })
-      .populate({
-        path: "local",
-        select: "nombre gps"
-      })
-      .populate({
-        path: "pedido.producto", // Aquí es donde haces el populate de productos
-        select: "nombre precio local categoria taper",
-        populate: { // Aquí se hace el populate del campo local dentro de producto
-          path: "local", // Asegúrate de que el campo local en producto sea una referencia válida
-          select: "nombre adicionalPorTaper " // Selecciona los campos que necesitas
-        }
-      })
-      .select("-createdAt -gpsCreacion -horaCreacion -updatedAt -__v")
-      .sort({ hora: 1 }); // Orden ascendente por el campo 'hora'
-  
+    })
+        .populate({
+            path: "generadoPor",
+            select: "nombre"
+        })
+        .populate({
+            path: "driver",
+            select: "nombre"
+        })
+        .populate({
+            path: "local",
+            select: "nombre gps"
+        })
+        .populate({
+            path: "pedido.producto", // Aquí es donde haces el populate de productos
+            select: "nombre precio local categoria taper",
+            populate: { // Aquí se hace el populate del campo local dentro de producto
+                path: "local", // Asegúrate de que el campo local en producto sea una referencia válida
+                select: "nombre adicionalPorTaper " // Selecciona los campos que necesitas
+            }
+        })
+        .select("-createdAt -gpsCreacion -horaCreacion -updatedAt -__v")
+        .sort({ hora: 1 }); // Orden ascendente por el campo 'hora'
+
     res.json(pedidos);
-  };
-  
+};
+
 
 const obtenerPedidosNoEntregadosPorLocal = async (req, res) => {
     const { localId } = req.params;  // Asumiendo que el localId se pasa como un parámetro en la URL
@@ -491,7 +491,8 @@ const obtenerPedidosPorTelefonoConGps = async (req, res) => {
         const pedidos = await Pedido.find({ telefono, gps: { $in: gpsUnicos } })
             .populate({ path: "local", select: "nombre" })
             .select("delivery direccion fecha local gps")
-            .sort({ fecha: -1 }); // Ordena los pedidos por fecha en orden descendente
+            .sort({ fecha: -1 })
+            .limit(5); // Ordena los pedidos por fecha en orden descendente
 
         // Utiliza un objeto auxiliar para rastrear los pedidos más recientes para cada valor de "gps"
         const pedidosFiltrados = {};
@@ -795,9 +796,9 @@ const aceptarPedido = async (req, res) => {
         }
 
 
-
+        const driver = await Usuario.findById(req.body.driver).select("nombre")
         const local = await Local.findById(pedido.local).select("idTelegram");
-        console.log(local.idTelegram);
+
         const idTelegram = local?.idTelegram; // Usar optional chaining para evitar errores si local es null
 
         console.log('ID de Telegram:', idTelegram);
@@ -819,7 +820,7 @@ const aceptarPedido = async (req, res) => {
 
             // Enviar mensaje y guardar el ID del mensaje en el pedido
             if (idTelegram) {
-                const mensaje = await sendMessageWithId(idTelegram, `🛵 Pedido aceptado:\n\nHora: ${pedido.hora}\nDireccion:${pedido.direccion}\n\nha sido aceptado por motorizado`);
+                const mensaje = await sendMessageWithId(idTelegram, `🛵 Pedido aceptado:\n\nHora: ${pedido.hora}\nDireccion:${pedido.direccion}\n\nha sido aceptado por ${driver.nombre}`);
                 pedido.idMensajeTelegram = mensaje.message_id; // Guardar el ID del mensaje
                 await pedido.save();
             } else {
@@ -849,9 +850,35 @@ const liberarPedido = async (req, res) => {
         }
 
         if (pedido.driver) {
+            const driver = await Usuario.findById(pedido.driver).select("nombre");
+            const local = await Local.findById(pedido.local).select("idTelegram");
+
+            const idTelegram = -4112441362; // Usar optional chaining para evitar errores si local es null
+            console.log('ID de Telegram:', idTelegram);
+
+            // Enviar mensaje de liberación de pedido
+            if (idTelegram) {
+                try {
+                    await sendMessageWithId(
+                        idTelegram,
+                        `🔄 Pedido liberado:\n\nHora: ${pedido.hora}\nDirección: ${pedido.direccion}\n\nha sido liberado por ${driver.nombre}.`
+                    );
+                } catch (error) {
+                    console.error("Error enviando el mensaje de Telegram: ", error);
+                }
+            } else {
+                console.error("ID de Telegram no disponible");
+            }
+
+            // Liberar el pedido
             pedido.driver = undefined;
-            pedido.estadoPedido = "sin asignar" // Eliminar el valor del campo driver
+            pedido.estadoPedido = "sin asignar"; // Cambiar el estado del pedido
             const pedidoGuardado = await pedido.save();
+
+            // Actualizar estado del conductor
+            driver.estadoUsuario = "Disponible";
+            await driver.save();
+
             res.json(pedidoGuardado);
         } else {
             const error = new Error("El pedido no tiene asignado un conductor");
@@ -875,30 +902,47 @@ const marcarPedidoEnLocal = async (req, res) => {
             return res.status(404).json({ msg: error.message });
         }
 
-        // Eliminar mensaje anterior
+        // Intentar eliminar el mensaje anterior
         if (pedido.idMensajeTelegram && pedido.idTelegram) {
-            await deleteMessageWithId(pedido.idTelegram, pedido.idMensajeTelegram);
+            try {
+                await deleteMessageWithId(pedido.idTelegram, pedido.idMensajeTelegram);
+            } catch (error) {
+                if (error.response?.error_code === 400) {
+                    console.warn("No se pudo eliminar el mensaje: " + error.response.description);
+                } else {
+                    console.error("Error eliminando el mensaje: ", error);
+                }
+            }
         }
 
+        // Actualizar el estado del pedido
         pedido.estadoPedido = "en local";
         pedido.horaLlegadaLocal = new Date().toISOString();
         const pedidoGuardado = await pedido.save();
 
         // Enviar nuevo mensaje
         if (pedido.idTelegram) { // Verificar que idTelegram no es null
-            const mensaje = await sendMessageWithId(pedido.idTelegram, `📍Pedido en espera:\n\nHora: ${pedido.hora}\nDireccion: ${pedido.direccion}\n\nestá esperando en el local.`);
-            pedido.idMensajeTelegram = mensaje.message_id; // Guardar nuevo ID del mensaje
-            await pedido.save();
+            try {
+                const mensaje = await sendMessageWithId(
+                    pedido.idTelegram,
+                    `📍Pedido en espera:\n\nHora: ${pedido.hora}\nDireccion: ${pedido.direccion}\n\nestá esperando en el local.`
+                );
+                pedido.idMensajeTelegram = mensaje.message_id; // Guardar nuevo ID del mensaje
+                await pedido.save();
+            } catch (error) {
+                console.error("Error enviando el mensaje de Telegram: ", error);
+            }
         } else {
-            console.error('Chat ID is missing for sending the message');
+            console.error("Chat ID is missing for sending the message");
         }
 
         res.json(pedidoGuardado);
     } catch (error) {
-        console.log(error);
+        console.error("Error interno del servidor: ", error);
         res.status(500).json({ msg: "Error interno del servidor" });
     }
 };
+
 
 const marcarPedidoRecogido = async (req, res) => {
     const { id } = req.params;
@@ -927,6 +971,7 @@ const actualizarCoordenadasPedido = async (req, res) => {
 
     try {
         const pedido = await Pedido.findById(id);
+        const driver = await Usuario.findById(pedido.driver).select("nombre");
 
         if (!pedido) {
             const error = new Error("Pedido no encontrado");
@@ -935,14 +980,33 @@ const actualizarCoordenadasPedido = async (req, res) => {
 
         // Actualizar las coordenadas del pedido
         pedido.gps = coordenadas;
-
         const pedidoGuardado = await pedido.save();
+
+        // Obtener el ID de Telegram del local asociado al pedido
+        const local = await Local.findById(pedido.local).select("idTelegram");
+        const idTelegram = -4112441362; // Usar optional chaining para evitar errores si local es null
+
+        // Enviar mensaje de actualización de coordenadas
+        if (idTelegram) {
+            try {
+                await sendMessageWithId(
+                    idTelegram,
+                    `📍 Las coordenadas del pedido ${pedido.direccion} se han actualizado:\n\nHora: ${pedido.hora}\nNueva ubicación GPS: ${coordenadas}\nDriver: ${driver.nombre}`
+                );
+            } catch (error) {
+                console.error("Error enviando el mensaje de Telegram: ", error);
+            }
+        } else {
+            console.error("ID de Telegram no disponible");
+        }
+
         res.json(pedidoGuardado);
     } catch (error) {
         console.log(error);
         res.status(500).json({ msg: "Error interno del servidor" });
     }
 };
+
 
 
 
@@ -953,42 +1017,75 @@ const marcarPedidoEntregado = async (req, res) => {
     console.log("driver: " + req.body.driver);
     console.log("idPedido: " + id);
 
-
-
-
-
     try {
         const pedido = await Pedido.findById(id);
-
-        if (pedido.idMensajeTelegram && pedido.idTelegram) {
-            await deleteMessageWithId(pedido.idTelegram, pedido.idMensajeTelegram);
-        }
+        const driver = await Usuario.findById(req.body.driver).select("nombre");
 
         if (!pedido) {
             const error = new Error("Pedido no encontrado");
             return res.status(404).json({ msg: error.message });
         }
 
+        // Eliminar mensaje anterior de Telegram
+        if (pedido.idMensajeTelegram && pedido.idTelegram) {
+            await deleteMessageWithId(pedido.idTelegram, pedido.idMensajeTelegram);
+        }
+
+        // Actualizar estado del pedido a entregado
         pedido.estadoPedido = "entregado";
         pedido.horaEntrega = new Date().toISOString();
         const pedidoGuardado = await pedido.save();
 
-        const horaEntregaFormateada = formatHoraEntrega(pedido.horaEntrega);
+        // ID alternativo de Telegram para mensajes sin GPS
+        const idTelegramAlternativo = -4112441362; // Configura este valor en tus variables de entorno
 
-        if (pedido.idTelegram) {
-            const mensaje = await sendMessageWithId(pedido.idTelegram, `✅Pedido entregado:\n\nHora: ${pedido.hora}\nDireccion: ${pedido.direccion}\n\nha sido entregado con éxito a las:\n${horaEntregaFormateada}.`);
-            pedido.idMensajeTelegram = mensaje.message_id;
-            await pedido.save();
+        // Verificar existencia de ID de Telegram y GPS
+        if (pedido.idTelegram || idTelegramAlternativo) {
+            let mensajeTexto;
+
+            if (pedido.gps && pedido.gps.trim() !== "") {
+                // Mensaje con GPS
+                mensajeTexto = `✅Pedido entregado:\n\nHora: ${pedido.hora}\nDireccion: ${pedido.direccion}\n\nha sido entregado con éxito.\nCoordenadas GPS: ${pedido.gps}`;
+            } else {
+                // Mensaje sin GPS
+                mensajeTexto = `⚠️Pedido entregado sin marcar coordenadas GPS:\n\nHora: ${pedido.hora}\nDireccion: ${pedido.direccion}.`;
+
+                // Enviar mensaje al ID alternativo
+                try {
+                    await sendMessageWithId(
+                        idTelegramAlternativo,
+                        `⚠️Alerta: Se entregó un pedido sin marcar coordenadas GPS:\n\nHora: ${pedido.hora}\nDireccion: ${pedido.direccion}\nDriver: ${driver.nombre}.`
+                    );
+                    console.log("Mensaje enviado al ID alternativo");
+                } catch (error) {
+                    console.error("Error enviando mensaje al ID alternativo: ", error);
+                }
+            }
+
+            // Enviar mensaje principal al ID de Telegram del local (si existe)
+            if (pedido.idTelegram) {
+                try {
+                    const mensaje = await sendMessageWithId(pedido.idTelegram, mensajeTexto);
+                    pedido.idMensajeTelegram = mensaje.message_id;
+                    await pedido.save();
+                } catch (error) {
+                    console.error("Error enviando mensaje de Telegram: ", error);
+                }
+            }
         } else {
-            console.error('ID de Telegram no disponible');
+            console.error("ID de Telegram no disponible ni alternativo configurado");
         }
 
         res.json(pedidoGuardado);
+        
+
     } catch (error) {
         console.log(error);
         res.status(500).json({ msg: "Error interno del servidor" });
     }
 };
+
+
 
 const asignadorPedidosAuto = async () => {
     const usuariosMotorizados = await Usuario.find({
