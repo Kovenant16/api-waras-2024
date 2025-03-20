@@ -4,8 +4,7 @@ import Local from "../models/Local.js";
 import Cliente from "../models/Cliente.js";
 import { Server } from 'socket.io';
 import { sendMessage, sendMessageWithId, deleteMessageWithId } from "../bot/bot.js";
-import moment from 'moment-timezone';
-import { populate } from "dotenv";
+
 
 const io = new Server(/* Parámetros del servidor, como la instancia de tu servidor HTTP */);
 
@@ -73,21 +72,21 @@ const obtenerPedidosNoEntregados = async (req, res) => {
 };
 
 const obtenerPedidosNoEntregadosSinDriver = async (req, res) => {
-    const pedidos = await Pedido.find({
-        estadoPedido: ["pendiente", "recogido", "sin asignar", "en local"],
-        $or: [
-            { driver: { $exists: false } },
-        ]
-    })
-        .populate({
-            path: "generadoPor",
-            select: "nombre"
-        })
-        .populate({ path: "local", select: "nombre gps" })
-        .select("-createdAt -gpsCreacion -horaCreacion -updatedAt -__v")
-        .sort({ hora: 1 }); // Orden ascendente por el campo 'hora'
-    res.json(pedidos);
+    const hoy = new Date().toISOString().split("T")[0]; // "2024-03-14"
+
+const pedidos = await Pedido.find({
+    estadoPedido: { $in: ["pendiente", "recogido", "sin asignar", "en local"] },
+    $or: [{ driver: { $exists: false } }],
+    fecha: hoy, // Filtra solo los pedidos de hoy
+})
+    .populate({ path: "generadoPor", select: "nombre" })
+    .populate({ path: "local", select: "nombre gps" })
+    .select("-gpsCreacion -horaCreacion -updatedAt -__v")
+    .sort({ hora: 1 });
+
+res.json(pedidos);
 };
+
 
 const obtenerPedidosAsignados = async (req, res) => {
     const pedidos = await Pedido.find({
@@ -104,7 +103,7 @@ const obtenerPedidosAsignados = async (req, res) => {
         })
         .populate({
             path: "local",
-            select: "nombre gps"
+            select: "nombre gps direccion"
         })
         .populate({
             path: "pedido.producto", // Aquí es donde haces el populate de productos
@@ -119,7 +118,6 @@ const obtenerPedidosAsignados = async (req, res) => {
 
     res.json(pedidos);
 };
-
 
 const obtenerPedidosNoEntregadosPorLocal = async (req, res) => {
     const { localId } = req.params;  // Asumiendo que el localId se pasa como un parámetro en la URL
@@ -157,8 +155,6 @@ const obtenerPedidosNoEntregadosPorLocal = async (req, res) => {
     }
 };
 
-
-//completado
 const obtenerPedidosMotorizadoLogueado = async (req, res) => {
     const pedidos = await Pedido.find({
         estadoPedido: ["pendiente", "recogido", "sin asignar", "en local"],
@@ -169,7 +165,6 @@ const obtenerPedidosMotorizadoLogueado = async (req, res) => {
     res.json(pedidos);
 };
 
-//completado
 const nuevoPedido = async (req, res) => {
     const pedido = new Pedido(req.body);
     pedido.generadoPor = req.usuario._id;
@@ -194,8 +189,6 @@ const nuevoPedido = async (req, res) => {
         res.status(500).json({ message: 'Error al crear el pedido' });
     }
 };
-
-
 
 const nuevoPedidoSocio = async (req, res) => {
     const pedido = new Pedido(req.body);
@@ -227,8 +220,6 @@ const nuevoPedidoSocio = async (req, res) => {
     }
 };
 
-
-//completado, acepta mejoras
 const obtenerPedido = async (req, res) => {
     const { id } = req.params;
 
@@ -252,6 +243,14 @@ const obtenerPedido = async (req, res) => {
         .populate({
             path: "local",
             select: "-createdAt -habilitado -updatedAt",
+        })
+        .populate({
+            path: "pedido.producto",
+            select: "categoria nombre local",
+            populate: {
+                path: "local", // Aquí indicamos que también queremos poblar el campo `local`
+                select: "nombre ", // Selecciona los campos que deseas de `local`
+            }
         })
         .populate({
             path: "cliente",
@@ -402,7 +401,6 @@ const eliminarPedidoSocio = async (req, res) => {
     }
 };
 
-
 const asignarMotorizado = async (req, res) => {
     const { idPedido, idDriver } = req.body;
 
@@ -474,6 +472,7 @@ const obtenerPedidosPorFecha = async (req, res) => {
             path: "generadoPor",
             select: "nombre"
         })
+        
         .select("-detallePedido -gps -gpsCreacion -horaCreacion -medioDePago");
 
     res.json(pedidos);
@@ -507,6 +506,8 @@ const obtenerPedidosPorTelefonoConGps = async (req, res) => {
         const resultado = Object.values(pedidosFiltrados);
 
         res.json(resultado);
+        console.log(resultado);
+        
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: "Error al obtener los pedidos." });
@@ -586,7 +587,6 @@ const obtenerPedidosPorTelefonoYLocalYGpsVacio2 = async (req, res) => {
     }
 };
 
-
 const obtenerPedidosPorTelefonoYLocalYGpsVacio = async (req, res) => {
     try {
         let { telefono, localId } = req.body;
@@ -600,7 +600,8 @@ const obtenerPedidosPorTelefonoYLocalYGpsVacio = async (req, res) => {
 
         // Buscar pedidos con el filtro
         const pedidos = await Pedido.find(filtro)
-            .select("delivery direccion fecha gps telefono")
+            .select("delivery direccion fecha gps telefono local")
+            .populate("local", "nombre")
             .sort({ fecha: -1 });
 
 
@@ -715,7 +716,7 @@ const obtenerPedidosPorFechasYLocal = async (req, res) => {
         .populate({ path: "driver", select: " nombre" })
         .populate({ path: "local", select: "nombre" })
         .populate({ path: "generadoPor", select: "nombre" })
-        .select("cobrar horaLlegadaLocal detallePedido horaRecojo horaEntrega comVenta createdAt delivery direccion estadoPedido fecha hora telefono tipoPedido")
+        .select("cobrar pedido horaLlegadaLocal detallePedido horaRecojo horaEntrega comVenta createdAt delivery direccion estadoPedido fecha hora telefono tipoPedido")
         .sort({ fecha: 1 });
 
 
@@ -777,9 +778,6 @@ const obtenerPedidosMotorizado = async (req, res) => {
     const pedidosMotorizado = await Pedido.find({ driver }).populate("driver").populate("local")
     res.json(pedidosMotorizado)
 };
-
-
-
 
 const aceptarPedido = async (req, res) => {
     const { id } = req.params;
@@ -890,8 +888,6 @@ const liberarPedido = async (req, res) => {
     }
 };
 
-
-
 const marcarPedidoEnLocal = async (req, res) => {
     const { id } = req.params;
 
@@ -942,7 +938,6 @@ const marcarPedidoEnLocal = async (req, res) => {
         res.status(500).json({ msg: "Error interno del servidor" });
     }
 };
-
 
 const marcarPedidoRecogido = async (req, res) => {
     const { id } = req.params;
@@ -1006,10 +1001,6 @@ const actualizarCoordenadasPedido = async (req, res) => {
         res.status(500).json({ msg: "Error interno del servidor" });
     }
 };
-
-
-
-
 
 const marcarPedidoEntregado = async (req, res) => {
     const { id } = req.params;
@@ -1084,8 +1075,6 @@ const marcarPedidoEntregado = async (req, res) => {
         res.status(500).json({ msg: "Error interno del servidor" });
     }
 };
-
-
 
 const asignadorPedidosAuto = async () => {
     const usuariosMotorizados = await Usuario.find({
