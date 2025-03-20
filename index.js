@@ -9,6 +9,7 @@ import clienteRoutes from "./routes/clienteRoutes.js";
 import productoRoutes from "./routes/productoRoutes.js"
 import categoriaRoutes from "./routes/categoriaRoutes.js"
 import ordenesClienteRoutes from "./routes/ordenesClienteRoutes.js"
+import asistenciaRoutes from "./routes/asistenciaRoutes.js"
 
 //import bot from './bot/bot.js';
 
@@ -36,6 +37,7 @@ app.use("/api/clientes", clienteRoutes);
 app.use("/api/tienda", productoRoutes);
 app.use("/api/categoria", categoriaRoutes)
 app.use("/api/ordenes",ordenesClienteRoutes)
+app.use("/api/asistencia", asistenciaRoutes)
 
 const PORT = 4000 //process.env.PORT || 4000
 
