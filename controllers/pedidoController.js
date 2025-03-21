@@ -72,12 +72,11 @@ const obtenerPedidosNoEntregados = async (req, res) => {
 };
 
 const obtenerPedidosNoEntregadosSinDriver = async (req, res) => {
-    const hoy = new Date().toISOString().split("T")[0]; // "2024-03-14"
+   
 
 const pedidos = await Pedido.find({
     estadoPedido: { $in: ["pendiente", "recogido", "sin asignar", "en local"] },
-    $or: [{ driver: { $exists: false } }],
-    fecha: hoy, // Filtra solo los pedidos de hoy
+    $or: [{ driver: { $exists: false } }] // Filtra solo los pedidos de hoy
 })
     .populate({ path: "generadoPor", select: "nombre" })
     .populate({ path: "local", select: "nombre gps" })
@@ -85,6 +84,7 @@ const pedidos = await Pedido.find({
     .sort({ hora: 1 });
 
 res.json(pedidos);
+
 };
 
 
