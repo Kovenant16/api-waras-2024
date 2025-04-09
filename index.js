@@ -1,4 +1,5 @@
 import express from 'express'
+//import queueRoutes from './routes/queueRoutes.js'
 import cors from 'cors'
 import dotenv from "dotenv"
 import conectarDB from './config/db.js';
@@ -10,6 +11,7 @@ import productoRoutes from "./routes/productoRoutes.js"
 import categoriaRoutes from "./routes/categoriaRoutes.js"
 import ordenesClienteRoutes from "./routes/ordenesClienteRoutes.js"
 import asistenciaRoutes from "./routes/asistenciaRoutes.js"
+import ventaRoutes from "./routes/ventaRoutes.js"
 
 //import bot from './bot/bot.js';
 
@@ -38,6 +40,9 @@ app.use("/api/tienda", productoRoutes);
 app.use("/api/categoria", categoriaRoutes)
 app.use("/api/ordenes",ordenesClienteRoutes)
 app.use("/api/asistencia", asistenciaRoutes)
+app.use("/api/ventas", ventaRoutes)
+//app.use("/queue", queueRoutes);
+
 
 const PORT = 4000 //process.env.PORT || 4000
 

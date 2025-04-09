@@ -270,6 +270,30 @@ const obtenerPedido = async (req, res) => {
 
 };
 
+const obtenerPedidoPorTelefono = async (req, res) => {
+    const { telefono } = req.body; 
+
+    
+    
+
+    const pedido = await Pedido.findOne({ telefono:  telefono , estadoPedido: ["pendiente", "recogido", "sin asignar", "en local"], })
+        .select("estadoPedido direccion hora cobrar delivery horaRecojo") // Seleccionamos los campos específicos
+        .populate({
+            path: "local",
+            select: "nombre" // Solo mostramos el nombre del local
+        })
+        .populate({
+            path: "driver",
+            select: "nombre" // Solo mostramos el nombre del driver
+        });
+
+    if (!pedido) {
+        return res.status(404).json({ msg: "Pedido no encontrado" });
+    }
+
+    return res.json(pedido);
+};
+
 const obtenerPedidoSocio = async (req, res) => {
     const { id } = req.params;
 
@@ -373,7 +397,7 @@ const eliminarPedidoSocio = async (req, res) => {
 
     try {
         const pedido = await Pedido.findById(id);
-        console.log(pedido);
+        
 
         if (!pedido) {
             const error = new Error("Pedido no encontrado");
@@ -404,8 +428,7 @@ const eliminarPedidoSocio = async (req, res) => {
 const asignarMotorizado = async (req, res) => {
     const { idPedido, idDriver } = req.body;
 
-    console.log("driver: " + idDriver);
-    console.log("idPedido: " + idPedido);
+    
 
     try {
         const pedido = await Pedido.findById(idPedido);
@@ -625,7 +648,6 @@ const obtenerPedidosPorTelefonoYLocalYGpsVacio = async (req, res) => {
         res.status(500).json({ error: "Error al obtener los pedidos." });
     }
 };
-
 
 const obtenerPedidosSinGPS = async (req, res) => {
     try {
@@ -1134,5 +1156,6 @@ export {
     obtenerPedidosPorTelefonoYLocalYGpsVacio,
     obtenerPedidosNoEntregadosPorLocal,
     obtenerPedidosNoEntregadosSinDriver,
-    obtenerPedidosAsignados
+    obtenerPedidosAsignados,
+    obtenerPedidoPorTelefono
 };

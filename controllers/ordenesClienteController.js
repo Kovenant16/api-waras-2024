@@ -1,4 +1,5 @@
 import OrdenCliente from "../models/OrdenCliente.js";
+import mongoose from "mongoose";
 
 const nuevaOrdenCliente = async (req,res) => {
     try {
@@ -34,6 +35,37 @@ const obtenerOrdenesClientes = async (req, res) => {
     }
 };
 
+const obtenerOrdenesPorLocal = async (req, res) => {
+    try {
+        const { localId } = req.body;
+        console.log("Local ID recibido:", localId);
+
+        const ordenes = await OrdenCliente.find()
+            .populate({
+                path: "pedido.producto",
+                model: "Producto",
+                populate: {
+                    path: "local",
+                    model: "Local",
+                },
+            })
+            .sort({ createdAt: -1 });
+
+        // Filtrar las órdenes en código porque `local` está dentro de `producto`
+        const ordenesFiltradas = ordenes.filter((orden) =>
+            orden.pedido.some((item) =>
+                item.producto.local && item.producto.local._id.toString() === localId
+            )
+        );
+
+        console.log("Órdenes encontradas:", ordenesFiltradas.length);
+        res.status(200).json(ordenesFiltradas);
+    } catch (error) {
+        console.error("Error al obtener órdenes:", error);
+        res.status(500).json({ message: "Error al obtener las órdenes de cliente" });
+    }
+};
+
 const borrarOrdenCliente = async (req, res) => {
     try {
         const { id } = req.params; // Se espera recibir el ID de la orden en los parámetros de la solicitud
@@ -55,5 +87,5 @@ const borrarOrdenCliente = async (req, res) => {
 
 
 export {
-    nuevaOrdenCliente,obtenerOrdenesClientes, borrarOrdenCliente
+    nuevaOrdenCliente,obtenerOrdenesClientes, borrarOrdenCliente,obtenerOrdenesPorLocal
 };

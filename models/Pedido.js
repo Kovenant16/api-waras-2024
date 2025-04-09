@@ -31,7 +31,7 @@ const pedidosSchema = mongoose.Schema(
         },
         tipoPedido: {
             type: String,
-            enum:["express", "compras", "paqueteria", "app"],
+            enum: ["express", "compras", "paqueteria", "app"],
             default: "express",
         },
         telefono: {
@@ -99,6 +99,10 @@ const pedidosSchema = mongoose.Schema(
         idTelegram: {
             type: String, // El ID del chat en Telegram es una cadena
             default: null,
+        },
+        porcentPago: {
+            type: Number,
+            default: 0.8, // Representa el 80%
         },
         pedido: [
             {
