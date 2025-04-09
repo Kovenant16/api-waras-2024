@@ -34,7 +34,8 @@ import {
     eliminarPedidoSocio,
     obtenerPedidosNoEntregadosPorLocal,
     obtenerPedidosNoEntregadosSinDriver,
-    obtenerPedidosAsignados
+    obtenerPedidosAsignados,
+    obtenerPedidoPorTelefono
 } from "../controllers/pedidoController.js";
 import checkAuth from "../middleware/checkAuth.js";
 
@@ -43,6 +44,7 @@ const router = express.Router();
 router.get("/", checkAuth,);
 router.get("/motorizados", obtenerMotorizados);
 router.get("/motorizadosActivos", obtenerMotorizadosActivos);
+router.post("/obtenerPedidoPorTelefono", obtenerPedidoPorTelefono);
 router.get("/locales", obtenerLocales)
 router.post('/obtenerClientes/',checkAuth, obtenerClientes);
 router.post('/asignarMotorizado/',checkAuth, asignarMotorizado);
