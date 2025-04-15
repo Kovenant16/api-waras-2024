@@ -1116,7 +1116,151 @@ const asignadorPedidosAuto = async () => {
 
 
 
+};
+
+const calcularPrecioDelivery = async (req, res) => {
+    const { startLocation, endLocation } = req.body;
+    console.log(startLocation);
+    console.log(endLocation);
+    
+    
+
+    if (!startLocation || !endLocation) {
+        const error = new Error("Faltan coordenadas");
+        return res.status(400).json({ msg: error.message });
+    }
+
+    // Polígono fijo dentro del servidor (Huaraz, por ejemplo)
+    const polygonPoints = [
+        { lat: -9.4708529333816, lng: -77.53900559802246 },
+        { lat: -9.485075647727568, lng: -77.53754647631835 },
+        { lat: -9.495065058783174, lng: -77.54097970385742 },
+        { lat: -9.505308135424293, lng: -77.53565820117187 },
+        { lat: -9.514873706996264, lng: -77.5344565715332 },
+        { lat: -9.525528, lng: -77.538277 },
+        { lat: -9.532776690015144, lng: -77.53385575671386 },
+        { lat: -9.540902556849755, lng: -77.53282578845214 },
+        { lat: -9.540987200276897, lng: -77.52591641802978 },
+        { lat: -9.541025701512503, lng: -77.52136739154052 },
+        { lat: -9.538676838874489, lng: -77.51857789416503 },
+        { lat: -9.52989491183207, lng: -77.51836331744384 },
+        { lat: -9.518080324816905, lng: -77.51967012566254 },
+        { lat: -9.512526061659475, lng: -77.52197034650264 },
+        { lat: -9.508399326193132, lng: -77.52776391797481 },
+        { lat: -9.505099580392088, lng: -77.53194441821546 },
+        { lat: -9.49451787796985, lng: -77.53507723834485 },
+        { lat: -9.468371, lng: -77.535545 },
+    ];
+
+    try {
+        const result = calculateDistanceAndPrice(startLocation, endLocation, polygonPoints);
+        res.json(result); // Devuelve { distance, price }
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ msg: "Error al calcular el precio de delivery" });
+    }
+};
+
+function calculateDistanceAndPrice(start, end, polygonPoints) {
+    const distanceInMeters = calculateHaversineDistance(
+        start.lat,
+        start.lng,
+        end.lat,
+        end.lng
+    );
+
+    const isInsidePolygon = pointInPolygon(end, polygonPoints);
+
+    let distanceMultiplier = isInsidePolygon ? 1 : 2.1;
+
+    const distanceWithMultiplier = distanceInMeters * distanceMultiplier;
+
+    const price= Math.ceil((distanceWithMultiplier + 4.5) * 2) / 2;
+    const priceRedondeado = Math.ceil(price)
+
+    return {
+        distance: distanceWithMultiplier,
+        price: price
+        
+    };
 }
+
+function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // km
+
+    const dLat = deg2rad(lat2 - lat1);
+    const dLon = deg2rad(lon2 - lon1);
+
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(deg2rad(lat1)) *
+            Math.cos(deg2rad(lat2)) *
+            Math.sin(dLon / 2) *
+            Math.sin(dLon / 2);
+
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c;
+}
+
+function deg2rad(deg) {
+    return deg * (Math.PI / 180);
+}
+
+function pointInPolygon(point, polygonPoints) {
+    let inside = false;
+    const x = point.lng, y = point.lat;
+
+    for (
+        let i = 0, j = polygonPoints.length - 1;
+        i < polygonPoints.length;
+        j = i++
+    ) {
+        const xi = polygonPoints[i].lng, yi = polygonPoints[i].lat;
+        const xj = polygonPoints[j].lng, yj = polygonPoints[j].lat;
+
+        const intersect =
+            yi > y !== yj > y &&
+            x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+
+        if (intersect) inside = !inside;
+    }
+
+    return inside;
+}
+
+const obtenerLocalPorTelefono = async (req, res) => {
+    let { telefono } = req.body;
+    
+    // Eliminar espacios en blanco del número recibido
+    telefono = telefono.replace(/\s+/g, '');
+    console.log('Teléfono limpio:', telefono);
+  
+    try {
+      // Buscar tanto con espacios como sin espacios en telefonoUno y telefonoDos
+      const local = await Local.findOne({
+        $or: [
+          { telefonoUno: telefono },
+          { telefonoUno: { $regex: telefono.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3') } },
+          { telefonoDos: telefono },
+          { telefonoDos: { $regex: telefono.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3') } }
+        ]
+      }).select('nombre gps');
+  
+      if (!local) {
+        return res.status(404).json({ msg: 'Local no encontrado' });
+      }
+  
+      res.json(local);
+      console.log(local);
+  
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ msg: 'Error al obtener el local' });
+    }
+};
+
+  
 
 
 
@@ -1157,5 +1301,7 @@ export {
     obtenerPedidosNoEntregadosPorLocal,
     obtenerPedidosNoEntregadosSinDriver,
     obtenerPedidosAsignados,
-    obtenerPedidoPorTelefono
+    obtenerPedidoPorTelefono,
+    calcularPrecioDelivery,
+    obtenerLocalPorTelefono
 };

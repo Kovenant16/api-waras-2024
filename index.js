@@ -13,6 +13,8 @@ import ordenesClienteRoutes from "./routes/ordenesClienteRoutes.js"
 import asistenciaRoutes from "./routes/asistenciaRoutes.js"
 import ventaRoutes from "./routes/ventaRoutes.js"
 
+import { startSock } from './bot/botWhatsapp.js';
+
 //import bot from './bot/bot.js';
 
 
@@ -25,6 +27,7 @@ import { Server as WebsocketServer } from 'socket.io';
 
 dotenv.config()
 conectarDB()
+startSock();
 
 const app = express()
 
