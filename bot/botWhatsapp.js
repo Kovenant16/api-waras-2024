@@ -73,13 +73,14 @@ export async function startSock() {
                         const { price } = deliveryResponse.data;
 
                         await sock.sendMessage(remoteJid, {
-                            text: `🤖 *Hola, ${local.nombre}!*  
+                            text: `🤖 Hola, ${local.nombre},
 
-*Te saluda Waras Bot.*  
-El precio del delivery desde ${local.nombre} hasta la ubicación es:  
-💰 *S/ ${price}*  
+Te saludamos de Waras Delivery.  
+El costo de entrega desde ${local.nombre} hasta la ubicación del cliente es:  
+💰 S/ ${price}  
 
-Gracias por elegirnos. ¡Si necesitas algo más, estamos para ayudarte! 😊`
+Si estás de acuerdo, estamos listos para programar el pedido.  
+Quedamos atentos a tu confirmación.`
                         });
                     }
                 }
