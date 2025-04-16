@@ -90,3 +90,17 @@ Quedamos atentos a tu confirmación.`
         }
     });
 }
+
+export async function enviarMensajeAsignacion(sock, numero, mensaje) {
+    try {
+        const numeroFormateado = numero.includes('@s.whatsapp.net')
+            ? numero
+            : `${numero}@s.whatsapp.net`;
+
+        await sock.sendMessage(numeroFormateado, { text: mensaje });
+
+        console.log(`📤 Mensaje enviado a ${numero}: "${mensaje}"`);
+    } catch (error) {
+        console.error(`❌ Error al enviar mensaje a ${numero}:`, error.message);
+    }
+}
