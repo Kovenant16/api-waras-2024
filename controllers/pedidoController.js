@@ -738,7 +738,7 @@ const obtenerPedidosPorFechasYLocal = async (req, res) => {
         .populate({ path: "driver", select: " nombre" })
         .populate({ path: "local", select: "nombre" })
         .populate({ path: "generadoPor", select: "nombre" })
-        .select("cobrar pedido horaLlegadaLocal detallePedido horaRecojo horaEntrega comVenta createdAt delivery direccion estadoPedido fecha hora telefono tipoPedido")
+        .select("-detallePedido -gps -gpsCreacion -horaCreacion -medioDePago")
         .sort({ fecha: 1 });
 
 
@@ -1180,7 +1180,7 @@ function calculateDistanceAndPrice(start, end, polygonPoints) {
 
     return {
         distance: distanceWithMultiplier,
-        price: price
+        price: priceRedondeado
         
     };
 }
