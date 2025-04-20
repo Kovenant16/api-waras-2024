@@ -724,18 +724,21 @@ export const obtenerMotorizadosActivosYEnviarMensaje = async () => {
             habilitado: true,
             activo: true
         })
-            .select("nombre horaActivacion  estadoUsuario") // Selecciona solo los campos necesarios
+            .select("nombre horaActivacion estadoUsuario") // Selecciona solo los campos necesarios
             .sort({ horaActivacion: 1 }); // Ordena por horaActivacion, el más antiguo primero
 
         // Crear el mensaje de Telegram con la lista de motorizados activos
         let mensaje = "📋 Lista de motorizados activos:\n\n";
         motorizados.forEach((motorizado, index) => {
-            mensaje += `${index + 1}. ${motorizado.nombre} - EE: ${motorizado.estadoUsuario}\n`;
+            // Se asume que el campo 'nombre' tiene el formato 'Nombre Apellido'
+            const [primerNombre, apellido] = motorizado.nombre.split(" ");  // Divide el nombre completo
+            const apellidoAbreviado = apellido ? apellido.slice(0, 3) : '';  // Toma las primeras 3 letras del apellido
+
+            mensaje += `${index + 1}. ${primerNombre} ${apellidoAbreviado}. - EE: ${motorizado.estadoUsuario}\n`;
         });
 
         // Enviar mensaje a Telegram
         await sendMessageWithId("-4112441362", mensaje); // Reemplaza "-4112441362" con el chat_id adecuado grupo
-        //await sendMessageWithId("-4241205369", mensaje); //pruebas
     } catch (error) {
         console.log("Error al obtener los motorizados activos o enviar el mensaje de Telegram:", error);
     }

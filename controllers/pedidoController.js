@@ -4,6 +4,7 @@ import Local from "../models/Local.js";
 import Cliente from "../models/Cliente.js";
 import { Server } from 'socket.io';
 import { sendMessage, sendMessageWithId, deleteMessageWithId } from "../bot/bot.js";
+import { coordenadasPoligonoInicial, coordenadasPoligonoSecundario } from "../files/coordenadas.js";
 
 
 const io = new Server(/* Parámetros del servidor, como la instancia de tu servidor HTTP */);
@@ -72,18 +73,18 @@ const obtenerPedidosNoEntregados = async (req, res) => {
 };
 
 const obtenerPedidosNoEntregadosSinDriver = async (req, res) => {
-   
 
-const pedidos = await Pedido.find({
-    estadoPedido: { $in: ["pendiente", "recogido", "sin asignar", "en local"] },
-    $or: [{ driver: { $exists: false } }] // Filtra solo los pedidos de hoy
-})
-    .populate({ path: "generadoPor", select: "nombre" })
-    .populate({ path: "local", select: "nombre gps" })
-    .select("-gpsCreacion -horaCreacion -updatedAt -__v")
-    .sort({ hora: 1 });
 
-res.json(pedidos);
+    const pedidos = await Pedido.find({
+        estadoPedido: { $in: ["pendiente", "recogido", "sin asignar", "en local"] },
+        $or: [{ driver: { $exists: false } }] // Filtra solo los pedidos de hoy
+    })
+        .populate({ path: "generadoPor", select: "nombre" })
+        .populate({ path: "local", select: "nombre gps" })
+        .select("-gpsCreacion -horaCreacion -updatedAt -__v")
+        .sort({ hora: 1 });
+
+    res.json(pedidos);
 
 };
 
@@ -271,12 +272,12 @@ const obtenerPedido = async (req, res) => {
 };
 
 const obtenerPedidoPorTelefono = async (req, res) => {
-    const { telefono } = req.body; 
+    const { telefono } = req.body;
 
-    
-    
 
-    const pedido = await Pedido.findOne({ telefono:  telefono , estadoPedido: ["pendiente", "recogido", "sin asignar", "en local"], })
+
+
+    const pedido = await Pedido.findOne({ telefono: telefono, estadoPedido: ["pendiente", "recogido", "sin asignar", "en local"], })
         .select("estadoPedido direccion hora cobrar delivery horaRecojo") // Seleccionamos los campos específicos
         .populate({
             path: "local",
@@ -397,7 +398,7 @@ const eliminarPedidoSocio = async (req, res) => {
 
     try {
         const pedido = await Pedido.findById(id);
-        
+
 
         if (!pedido) {
             const error = new Error("Pedido no encontrado");
@@ -428,7 +429,7 @@ const eliminarPedidoSocio = async (req, res) => {
 const asignarMotorizado = async (req, res) => {
     const { idPedido, idDriver } = req.body;
 
-    
+
 
     try {
         const pedido = await Pedido.findById(idPedido);
@@ -495,7 +496,7 @@ const obtenerPedidosPorFecha = async (req, res) => {
             path: "generadoPor",
             select: "nombre"
         })
-        
+
         .select("-detallePedido -gps -gpsCreacion -horaCreacion -medioDePago");
 
     res.json(pedidos);
@@ -530,7 +531,7 @@ const obtenerPedidosPorTelefonoConGps = async (req, res) => {
 
         res.json(resultado);
         console.log(resultado);
-        
+
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: "Error al obtener los pedidos." });
@@ -1090,7 +1091,7 @@ const marcarPedidoEntregado = async (req, res) => {
         }
 
         res.json(pedidoGuardado);
-        
+
 
     } catch (error) {
         console.log(error);
@@ -1122,8 +1123,8 @@ const calcularPrecioDelivery = async (req, res) => {
     const { startLocation, endLocation } = req.body;
     console.log(startLocation);
     console.log(endLocation);
-    
-    
+
+
 
     if (!startLocation || !endLocation) {
         const error = new Error("Faltan coordenadas");
@@ -1161,7 +1162,124 @@ const calcularPrecioDelivery = async (req, res) => {
     }
 };
 
-function calculateDistanceAndPrice(start, end, polygonPoints) {
+// function calculateDistanceAndPrice(start, end, polygonPoints) {
+//     const distanceInMeters = calculateHaversineDistance(
+//         start.lat,
+//         start.lng,
+//         end.lat,
+//         end.lng
+//     );
+
+//     const isInsidePolygon = pointInPolygon(end, polygonPoints);
+
+//     let distanceMultiplier = isInsidePolygon ? 1 : 2.1;
+
+//     const distanceWithMultiplier = distanceInMeters * distanceMultiplier;
+
+//     const price = Math.ceil((distanceWithMultiplier + 4.5) * 2) / 2;
+//     const priceRedondeado = Math.ceil(price)
+
+//     return {
+//         distance: distanceWithMultiplier,
+//         price: priceRedondeado
+
+//     };
+// }
+
+// function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
+//     const R = 6371; // km
+
+//     const dLat = deg2rad(lat2 - lat1);
+//     const dLon = deg2rad(lon2 - lon1);
+
+//     const a =
+//         Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+//         Math.cos(deg2rad(lat1)) *
+//         Math.cos(deg2rad(lat2)) *
+//         Math.sin(dLon / 2) *
+//         Math.sin(dLon / 2);
+
+//     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+//     return R * c;
+// }
+
+// function deg2rad(deg) {
+//     return deg * (Math.PI / 180);
+// }
+
+// function pointInPolygon(point, polygonPoints) {
+//     let inside = false;
+//     const x = point.lng, y = point.lat;
+
+//     for (
+//         let i = 0, j = polygonPoints.length - 1;
+//         i < polygonPoints.length;
+//         j = i++
+//     ) {
+//         const xi = polygonPoints[i].lng, yi = polygonPoints[i].lat;
+//         const xj = polygonPoints[j].lng, yj = polygonPoints[j].lat;
+
+//         const intersect =
+//             yi > y !== yj > y &&
+//             x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+
+//         if (intersect) inside = !inside;
+//     }
+
+//     return inside;
+// }
+
+const obtenerLocalPorTelefono = async (req, res) => {
+    let { telefono } = req.body;
+
+    // Eliminar espacios en blanco del número recibido
+    telefono = telefono.replace(/\s+/g, '');
+    console.log('Teléfono limpio:', telefono);
+
+    try {
+        // Buscar tanto con espacios como sin espacios en telefonoUno y telefonoDos
+        const local = await Local.findOne({
+            $or: [
+                { telefonoUno: telefono },
+                { telefonoUno: { $regex: telefono.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3') } },
+                { telefonoDos: telefono },
+                { telefonoDos: { $regex: telefono.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3') } }
+            ]
+        }).select('nombre gps');
+
+        if (!local) {
+            return res.status(404).json({ msg: 'Local no encontrado' });
+        }
+
+        res.json(local);
+        console.log(local);
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ msg: 'Error al obtener el local' });
+    }
+};
+
+
+
+
+
+
+
+
+// empieza la version dos de calculo de distancia
+export function calculateDistanceAndPrice(start, end, coordenadasPoligonoInicial, coordenadasPoligonoSecundario) {
+    // Verificamos si tenemos todos los datos necesarios
+    if (!start || !end || !coordenadasPoligonoInicial || !coordenadasPoligonoSecundario) {
+        console.error("Faltan datos para el cálculo");
+        return {
+            hasService: false,
+            message: "Datos insuficientes para el cálculo"
+        };
+    }
+
+    // Calcular la distancia física entre los puntos
     const distanceInMeters = calculateHaversineDistance(
         start.lat,
         start.lng,
@@ -1169,24 +1287,63 @@ function calculateDistanceAndPrice(start, end, polygonPoints) {
         end.lng
     );
 
-    const isInsidePolygon = pointInPolygon(end, polygonPoints);
+    // Para depuración
+    console.log(`Punto inicio: ${JSON.stringify(start)}`);
+    console.log(`Punto fin: ${JSON.stringify(end)}`);
+    
+    // Verificar si los puntos están dentro de los polígonos
+    const startInsideInitialPolygon = pointInPolygon(start, coordenadasPoligonoInicial);
+    const endInsideInitialPolygon = pointInPolygon(end, coordenadasPoligonoInicial);
+    
+    const startInsideSecondaryPolygon = pointInPolygon(start, coordenadasPoligonoSecundario);
+    const endInsideSecondaryPolygon = pointInPolygon(end, coordenadasPoligonoSecundario);
+    
+    // Para depuración
+    console.log(`Inicio en polígono inicial: ${startInsideInitialPolygon}`);
+    console.log(`Fin en polígono inicial: ${endInsideInitialPolygon}`);
+    console.log(`Inicio en polígono secundario: ${startInsideSecondaryPolygon}`);
+    console.log(`Fin en polígono secundario: ${endInsideSecondaryPolygon}`);
 
-    let distanceMultiplier = isInsidePolygon ? 1 : 2.1;
+    // Regla 1: Si cualquier punto está fuera del polígono secundario, no hay servicio
+    if (!startInsideSecondaryPolygon || !endInsideSecondaryPolygon) {
+        return {
+            distance: distanceInMeters,
+            price: 0,
+            hasService: false,
+            message: "Lo sentimos, no hay cobertura para esta ubicación"
+        };
+    }
+
+    // Variables para tracking
+    let hasService = true;
+    let distanceMultiplier = 1;
+
+    // Regla 2: Si ambos puntos están dentro del polígono inicial, multiplicador = 1
+    if (startInsideInitialPolygon && endInsideInitialPolygon) {
+        distanceMultiplier = 1;
+    } 
+    // Regla 3: Si al menos un punto está fuera del polígono inicial pero ambos dentro del secundario, multiplicador = 2.1
+    else if (!startInsideInitialPolygon || !endInsideInitialPolygon) {
+        distanceMultiplier = 2.1;
+    }
 
     const distanceWithMultiplier = distanceInMeters * distanceMultiplier;
+    
+    const price = Math.ceil((distanceWithMultiplier + 4.5) * 2) / 2;
+    
 
-    const price= Math.ceil((distanceWithMultiplier + 4.5) * 2) / 2;
-    const priceRedondeado = Math.ceil(price)
-
-    return {
-        distance: distanceWithMultiplier,
-        price: priceRedondeado
-        
+    const result = {
+        distance: distanceWithMultiplier,        
+        price: Math.ceil(price),
+        hasService: true,
+        multiplier: distanceMultiplier
     };
+
+    return result;
 }
 
 function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371; // km
+    const R = 6371; // Radio de la Tierra en km
 
     const dLat = deg2rad(lat2 - lat1);
     const dLon = deg2rad(lon2 - lon1);
@@ -1200,67 +1357,90 @@ function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
 
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-    return R * c;
+    const distance = R * c; // Distancia en km
+
+    return distance;
 }
 
 function deg2rad(deg) {
     return deg * (Math.PI / 180);
 }
 
+// Algoritmo de punto en polígono mejorado para mayor precisión
 function pointInPolygon(point, polygonPoints) {
+    // Validación de entrada
+    if (!point || !point.lat || !point.lng || !Array.isArray(polygonPoints) || polygonPoints.length < 3) {
+        console.error("Datos inválidos para la verificación del polígono");
+        return false;
+    }
+
     let inside = false;
-    const x = point.lng, y = point.lat;
+    const x = point.lng;
+    const y = point.lat;
 
-    for (
-        let i = 0, j = polygonPoints.length - 1;
-        i < polygonPoints.length;
-        j = i++
-    ) {
-        const xi = polygonPoints[i].lng, yi = polygonPoints[i].lat;
-        const xj = polygonPoints[j].lng, yj = polygonPoints[j].lat;
+    for (let i = 0, j = polygonPoints.length - 1; i < polygonPoints.length; j = i++) {
+        // Verificar que tenemos coordenadas válidas
+        if (!polygonPoints[i].lat || !polygonPoints[i].lng || !polygonPoints[j].lat || !polygonPoints[j].lng) {
+            console.error(`Coordenada inválida en el polígono en índice ${i} o ${j}`);
+            continue;
+        }
 
-        const intersect =
-            yi > y !== yj > y &&
-            x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+        const xi = polygonPoints[i].lng;
+        const yi = polygonPoints[i].lat;
+        const xj = polygonPoints[j].lng;
+        const yj = polygonPoints[j].lat;
 
-        if (intersect) inside = !inside;
+        // Algoritmo ray-casting para determinar si el punto está dentro del polígono
+        const intersect = ((yi > y) !== (yj > y)) && 
+                          (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+        
+        if (intersect) {
+            inside = !inside;
+        }
     }
 
     return inside;
 }
 
-const obtenerLocalPorTelefono = async (req, res) => {
-    let { telefono } = req.body;
-    
-    // Eliminar espacios en blanco del número recibido
-    telefono = telefono.replace(/\s+/g, '');
-    console.log('Teléfono limpio:', telefono);
-  
+
+
+const calcularPrecioDeliveryDos = async (req, res) => {
+    const { startLocation, endLocation } = req.body;
+    console.log(startLocation);
+    console.log(endLocation);
+
+    if (!startLocation || !endLocation) {
+        const error = new Error("Faltan coordenadas");
+        return res.status(400).json({ msg: error.message });
+    }
+
     try {
-      // Buscar tanto con espacios como sin espacios en telefonoUno y telefonoDos
-      const local = await Local.findOne({
-        $or: [
-          { telefonoUno: telefono },
-          { telefonoUno: { $regex: telefono.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3') } },
-          { telefonoDos: telefono },
-          { telefonoDos: { $regex: telefono.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3') } }
-        ]
-      }).select('nombre gps');
-  
-      if (!local) {
-        return res.status(404).json({ msg: 'Local no encontrado' });
-      }
-  
-      res.json(local);
-      console.log(local);
-  
+        // Usar ambos polígonos en la función actualizada
+        const result = calculateDistanceAndPrice(
+            startLocation, 
+            endLocation, 
+            coordenadasPoligonoInicial, 
+            coordenadasPoligonoSecundario
+        );
+        
+        // Si no hay servicio, devolver una respuesta diferente
+        if (!result.hasService) {
+            return res.status(400).json({ 
+                msg: result.message,
+                hasService: false
+            });
+        }
+        
+        res.json(result); // Devuelve { distance, price, hasService, multiplier }
+        console.log(result);
+        
     } catch (error) {
-      console.error(error);
-      res.status(500).json({ msg: 'Error al obtener el local' });
+        console.log(error);
+        res.status(500).json({ msg: "Error al calcular el precio de delivery" });
     }
 };
 
-  
+
 
 
 
@@ -1303,5 +1483,6 @@ export {
     obtenerPedidosAsignados,
     obtenerPedidoPorTelefono,
     calcularPrecioDelivery,
-    obtenerLocalPorTelefono
+    obtenerLocalPorTelefono,
+    calcularPrecioDeliveryDos
 };
