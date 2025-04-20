@@ -37,7 +37,9 @@ import {
     obtenerPedidosAsignados,
     obtenerPedidoPorTelefono,
     calcularPrecioDelivery,
-    obtenerLocalPorTelefono
+    obtenerLocalPorTelefono,
+    calcularPrecioDeliveryDos,
+    enviarMensajeDesdeAPI
 } from "../controllers/pedidoController.js";
 import checkAuth from "../middleware/checkAuth.js";
 
@@ -75,7 +77,9 @@ router.put("/marcarEntregado/:id", checkAuth, marcarPedidoEntregado)
 router.put("/editarGPS/:id", checkAuth, actualizarCoordenadasPedido )
 router.delete("/eliminarPedidoSocio/:id", checkAuth,eliminarPedidoSocio)
 router.post("/calcularPrecioDelivery", calcularPrecioDelivery)
+router.post("/calcularPrecioDeliveryDos", calcularPrecioDeliveryDos)
 router.post("/obtenerLocalPorTelefono",obtenerLocalPorTelefono)
+router.post("/enviarMensajeApi",enviarMensajeDesdeAPI)
 router
     .route("/:id")
     .get(checkAuth, obtenerPedido)
