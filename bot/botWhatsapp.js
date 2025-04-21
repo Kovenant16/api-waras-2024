@@ -64,9 +64,6 @@ export async function startSock() {
 
                 if (!localResponse.data) {
                     console.log('⚠️ No se encontró el local con el teléfono proporcionado');
-                    await sock.sendMessage(remoteJid, {
-                        text: '❌ No pudimos identificar el local asociado a este número. Por favor, verifica el número o contacta con soporte.'
-                    });
                     return;
                 }
 
@@ -134,7 +131,7 @@ Si estás de acuerdo, estamos listos para programar el pedido.`
                     mensajeError = '❌ No pudimos conectar con nuestros servicios.';
                 }
 
-                await sock.sendMessage(remoteJid, { text: mensajeError });
+                //await sock.sendMessage(remoteJid, { text: mensajeError });
             }
         }
     });
