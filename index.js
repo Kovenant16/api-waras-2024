@@ -26,8 +26,13 @@ import { Server as WebsocketServer } from 'socket.io';
 
 
 dotenv.config()
-conectarDB()
-startSock();
+
+const iniciarApp = async () => {
+    await conectarDB()
+    await startSock()
+}
+
+iniciarApp()
 
 const app = express()
 

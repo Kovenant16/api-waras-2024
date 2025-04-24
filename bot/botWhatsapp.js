@@ -9,7 +9,7 @@ export let sock = null; // 👉 sock declarado en el scope global
 
 export async function startSock() {
     console.log('🟢 Iniciando sesión de WhatsApp...');
-    const { state, saveCreds } = await useMultiFileAuthState('auth');
+    const { state, saveCreds } = await useMultiFileAuthState('/data');
 
     sock = makeWASocket({
         logger: P({ level: 'silent' }),
