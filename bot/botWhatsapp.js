@@ -107,14 +107,18 @@ export async function startSock() {
                     return;
                 }
 
+                function capitalizarNombre(nombre) {
+                    return nombre.replace(/\b\w/g, letra => letra.toUpperCase());
+                }
+
                 const { price, distance } = deliveryResponse.data;
                 await sock.sendMessage(remoteJid, {
                     text: `🤖 Hola,
-El costo de entrega desde *${local.nombre}* es:  
-💰 *S/ ${price}*  
-📍 Distancia aprox: *${(distance * 1.2).toFixed(2)} km*
-
-Si estás de acuerdo, estamos listos para programar el pedido.`
+                El costo de entrega desde *${capitalizarNombre(local.nombre)}* hasta la ubicación es:  
+                💰 *S/ ${price}*  
+                📍 Distancia aprox: *${(distance * 1.2).toFixed(2)} km*
+                
+                Si estás de acuerdo, estamos listos para programar el pedido.`
                 });
 
                 console.log(`✅ Precio enviado a ${local.nombre}: S/ ${price}, Distancia: ${(distance / 1000).toFixed(2)} km`);
