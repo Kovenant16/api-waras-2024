@@ -1,6 +1,6 @@
 import Cliente from "../models/Cliente.js";
 import Verificacion from "../models/Verificacion.js";
-import { sock } from '../bot/botWhatsapp.js'; // Importa la instancia sock
+import { sock, isSockConnected } from '../bot/botWhatsapp.js'; // Importa la instancia sock
 
 const generarCodigoVerificacion = () => {
     return Math.floor(1000 + Math.random() * 9000).toString();
@@ -18,20 +18,22 @@ const enviarCodigoDeVerificacion = async (telefono) => {
             { upsert: true, setDefaultsOnInsert: true } // Si no existe, lo crea con el tiempo de expiración
         );
 
-        const numeroFormateado = telefono.startsWith('+51') ? telefono.substring(3) : telefono;
-        const numeroWhatsApp = `+51${numeroFormateado}@s.whatsapp.net`;
+        // Formatear el número para WhatsApp simplemente añadiendo el dominio
+        const numeroWhatsApp = `${telefono}@s.whatsapp.net`;
 
         if (sock) {
+            console.log('Estado de la conexión antes de enviar:', sock.authState.connectionState);
             await sock.sendMessage(numeroWhatsApp, { text: mensaje });
-            console.log(`✅ Código de verificación enviado a ${telefono}: ${codigo}`);
+            console.log(`✅ Código de verificación enviado a ${telefono} (WhatsApp: ${numeroWhatsApp}): ${codigo}`);
+            await sock.sendMessage(numeroWhatsApp, { text: 'Este es un mensaje de prueba.' }); 
         } else {
             console.log('⚠️ El socket de WhatsApp no está inicializado.');
-            // Considera una forma de manejar esto, como guardar el mensaje para enviarlo luego
+            // Considera una forma de manejar esto
         }
 
     } catch (error) {
         console.error('❌ Error al guardar o enviar el código de verificación:', error);
-        throw error; // Re-lanza el error para que el controlador lo maneje
+        throw error;
     }
 };
 
@@ -45,14 +47,20 @@ const registrarCliente = async (req, res) => {
     }
 
     try {
-        const cliente = new Cliente({ telefono, ...otrosDatos }); // Crea un nuevo cliente con los datos
+        const cliente = new Cliente({ telefono, ...otrosDatos });
         await cliente.save();
 
+        if (!sock) {
+            console.error('Error: El socket de WhatsApp no se ha inicializado.');
+            return res.status(503).json({ msg: 'Servicio de WhatsApp no disponible en este momento (socket no inicializado).' });
+        }
+
         await enviarCodigoDeVerificacion(telefono);
-        res.status(201).json({ msg: 'Cliente registrado. Se ha enviado un código de verificación a tu WhatsApp.', clienteId: cliente._id }); // Devuelve un código 201 (creado) y el ID del cliente
+        res.status(201).json({ msg: 'Cliente registrado. Se ha enviado un código de verificación a tu WhatsApp.', clienteId: cliente._id });
+
     } catch (error) {
         console.log("Error al registrar cliente:", error);
-        res.status(500).json({ msg: 'Error al registrar el cliente.' });
+        res.status(500).json({ msg: 'Error al registrar el cliente y/o enviar el código.' });
     }
 };
 

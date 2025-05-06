@@ -5,10 +5,11 @@ import {
     verificarCodigoCliente // Asegúrate de importar esta función
 } from '../controllers/clienteController.js';
 import checkAuth from '../middleware/checkAuth.js'; // Si tienes middleware de autenticación
+import { registrarNuevoCliente } from '../services/clienteService.js';
 
 const router = express.Router();
 
-router.post("/registrar", registrarCliente);
+router.post("/registrar", registrarNuevoCliente);
 router.post("/buscar", buscarClientesPorTelefono);
 router.post("/verificar-codigo", verificarCodigoCliente); // Nueva ruta para verificar el código
 
