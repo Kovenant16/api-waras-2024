@@ -739,7 +739,7 @@ const obtenerPedidosPorFechasYLocal = async (req, res) => {
         .populate({ path: "driver", select: " nombre" })
         .populate({ path: "local", select: "nombre" })
         .populate({ path: "generadoPor", select: "nombre" })
-        .select("-detallePedido -gps -gpsCreacion -horaCreacion -medioDePago")
+        .select("-gps -gpsCreacion -horaCreacion -medioDePago")
         .sort({ fecha: 1 });
 
 
