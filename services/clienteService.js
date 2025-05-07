@@ -114,5 +114,28 @@ const enviarCodigoVerificacion = async (req, res) => {
     }
 };
 
+const editarCliente = async (req, res) => {
+    const { id } = req.params;
+    const { nombre, telefono, ubicaciones } = req.body;
 
-export { registrarNuevoCliente, verificarCodigoCliente, enviarCodigoVerificacion };
+    try {
+        const clienteExistente = await Cliente.findById(id);
+        if (!clienteExistente) {
+            return res.status(404).json({ mensaje: 'Cliente no encontrado' });
+        }
+
+        clienteExistente.nombre = nombre || clienteExistente.nombre;
+        clienteExistente.telefono = telefono || clienteExistente.telefono;
+        clienteExistente.ubicaciones = ubicaciones || clienteExistente.ubicaciones;
+
+        const clienteActualizado = await clienteExistente.save();
+
+        res.json({ mensaje: 'Cliente actualizado correctamente', cliente: clienteActualizado });
+    } catch (error) {
+        console.error('Error al editar cliente:', error);
+        res.status(500).json({ error: 'Error al editar el cliente: ' + error.message });
+    }
+};
+
+
+export { registrarNuevoCliente, verificarCodigoCliente, enviarCodigoVerificacion, editarCliente };

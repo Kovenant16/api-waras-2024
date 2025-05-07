@@ -3,6 +3,7 @@ import {
     registrarNuevoCliente,
     verificarCodigoCliente,
     enviarCodigoVerificacion, // Importa la nueva función desde el servicio
+    editarCliente
 } from '../services/clienteService.js';
 
 const router = express.Router();
@@ -15,5 +16,9 @@ router.post("/verificar-codigo", verificarCodigoCliente);
 
 // Nueva ruta para enviar el código de verificación directamente
 router.post("/enviar-codigo", enviarCodigoVerificacion); // Usa la función del servicio
+
+// Ruta para editar un cliente
+router.put('/clientes/:id', editarCliente);
+
 
 export default router;
