@@ -159,16 +159,23 @@ Si estás de acuerdo, estamos listos para programar el pedido.`
     });
 }
 
-export async function enviarMensajeAsignacion(sockInstance, numero, mensaje) {
+export async function enviarMensajeAsignacion(numero, mensaje) {
     try {
         const numeroFormateado = numero.includes('@s.whatsapp.net')
             ? numero
             : `${numero}@s.whatsapp.net`;
 
-        await sockInstance.sendMessage(numeroFormateado, { text: mensaje });
-        console.log(`📤 Mensaje enviado a ${numero}: "${mensaje}"`);
+        if (sock && isConnected) { // Verifica si sock está inicializado y conectado
+            await sock.sendMessage(numeroFormateado, { text: mensaje });
+            console.log(`📤 Mensaje enviado a ${numero}: "${mensaje}"`);
+            return { success: true }; // Indica éxito
+        } else {
+            console.log('⚠️ El socket de WhatsApp no está inicializado o no conectado.');
+            return { success: false, message: 'Servicio de WhatsApp no disponible.' };
+        }
     } catch (error) {
-        console.error(`❌ Error al enviar mensaje a ${numero}:`, error.message);
+        console.error(`❌ Error al enviar mensaje a ${numero}:`, error);
+        return { success: false, message: 'Error al enviar mensaje: ' + error.message };
     }
 }
 

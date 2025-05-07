@@ -5,6 +5,7 @@ import Cliente from "../models/Cliente.js";
 import { Server } from 'socket.io';
 import { sendMessage, sendMessageWithId, deleteMessageWithId } from "../bot/bot.js";
 import { coordenadasPoligonoInicial, coordenadasPoligonoSecundario } from "../files/coordenadas.js";
+import { enviarMensajeAsignacion, startSock } from "../bot/botWhatsapp.js";
 
 
 const io = new Server(/* Parámetros del servidor, como la instancia de tu servidor HTTP */);
@@ -426,20 +427,74 @@ const eliminarPedidoSocio = async (req, res) => {
     }
 };
 
+// const asignarMotorizado = async (req, res) => {
+//     const { idPedido, idDriver } = req.body;
+
+
+
+//     try {
+//         const pedido = await Pedido.findById(idPedido);
+//         if (!pedido) {
+//             const error = new Error("Pedido no encontrado");
+//             return res.status(404).json({ msg: error.message });
+//         }
+
+//         const local = await Local.findById(pedido.local).select("idTelegram");
+//         const idTelegram = local?.idTelegram; // Usar optional chaining para evitar errores si local es null
+
+//         console.log('ID de Telegram:', idTelegram);
+
+//         if (pedido.idMensajeTelegram && pedido.idTelegram) {
+//             await deleteMessageWithId(pedido.idTelegram, pedido.idMensajeTelegram);
+//         }
+
+//         if (!pedido.driver) {
+//             pedido.driver = idDriver;
+//             pedido.estadoPedido = "pendiente";
+//             pedido.idTelegram = idTelegram;
+//             const pedidoGuardado = await pedido.save();
+
+//             const usuario = await Usuario.findById(idDriver);
+//             if (!usuario) {
+//                 const error = new Error("Usuario no encontrado");
+//                 return res.status(404).json({ msg: error.message });
+//             }
+//             usuario.estadoUsuario = "Con pedido";
+//             await usuario.save();
+
+//             // Enviar mensaje y guardar el ID del mensaje en el pedido
+//             if (idTelegram) {
+//                 const mensaje = await sendMessageWithId(idTelegram, `🛵 Pedido asignado:\n\nHora: ${pedido.hora}\nDireccion:${pedido.direccion}\n\nha sido aceptado por motorizado`);
+//                 pedido.idMensajeTelegram = mensaje.message_id; // Guardar el ID del mensaje
+//                 await pedido.save();
+//             } else {
+//                 console.error('ID de Telegram no disponible');
+//             }
+
+//             res.json(pedidoGuardado);
+//         } else {
+//             const error = new Error("Pedido ya ha sido tomado");
+//             return res.status(400).json({ msg: error.message });
+//         }
+//     } catch (error) {
+//         console.log(error);
+//         res.status(500).json({ msg: "Error interno del servidor" });
+//     }
+// };
+
+
 const asignarMotorizado = async (req, res) => {
     const { idPedido, idDriver } = req.body;
 
-
-
     try {
-        const pedido = await Pedido.findById(idPedido);
+        const pedido = await Pedido.findById(idPedido).populate('local', 'nombre');
         if (!pedido) {
             const error = new Error("Pedido no encontrado");
             return res.status(404).json({ msg: error.message });
         }
 
-        const local = await Local.findById(pedido.local).select("idTelegram");
-        const idTelegram = local?.idTelegram; // Usar optional chaining para evitar errores si local es null
+        const local = pedido.local;
+        const idTelegram = local?.idTelegram;
 
         console.log('ID de Telegram:', idTelegram);
 
@@ -453,21 +508,42 @@ const asignarMotorizado = async (req, res) => {
             pedido.idTelegram = idTelegram;
             const pedidoGuardado = await pedido.save();
 
-            const usuario = await Usuario.findById(idDriver);
-            if (!usuario) {
+            const driver = await Usuario.findById(idDriver); // Busca el usuario por idDriver
+            if (!driver) {
                 const error = new Error("Usuario no encontrado");
                 return res.status(404).json({ msg: error.message });
             }
-            usuario.estadoUsuario = "Con pedido";
-            await usuario.save();
+            driver.estadoUsuario = "Con pedido";
+            await driver.save();
 
-            // Enviar mensaje y guardar el ID del mensaje en el pedido
+            // Enviar mensaje a Telegram
             if (idTelegram) {
-                const mensaje = await sendMessageWithId(idTelegram, `🛵 Pedido asignado:\n\nHora: ${pedido.hora}\nDireccion:${pedido.direccion}\n\nha sido aceptado por motorizado`);
-                pedido.idMensajeTelegram = mensaje.message_id; // Guardar el ID del mensaje
+                const mensajeTelegram = await sendMessageWithId(idTelegram, `🛵 Pedido asignado:\n\nHora: ${pedido.hora}\nDireccion:${pedido.direccion}\n\nha sido aceptado por motorizado`);
+                pedido.idMensajeTelegram = mensajeTelegram.message_id;
                 await pedido.save();
             } else {
                 console.error('ID de Telegram no disponible');
+            }
+
+            // Enviar mensaje a WhatsApp
+            if (driver?.telefono) {
+                const numeroWhatsApp = `51${driver.telefono}`;
+                let nombresLocales = '';
+                if (local && Array.isArray(local) && local.length > 0) {
+                    nombresLocales = local.map(loc => loc.nombre).join(', ');
+                } else {
+                    nombresLocales = 'Nombre no disponible';
+                }
+                const mensajeWhatsApp = `Pedido asignado✅:\n${nombresLocales} - ${pedido.hora}\n${pedido.direccion}`;
+                try {
+                    // Intenta enviar el mensaje
+                    await enviarMensajeAsignacion(numeroWhatsApp, mensajeWhatsApp);
+                } catch (error) {
+                    console.error('Error al enviar mensaje de WhatsApp:', error);
+                    res.status(500).json({ msg: "Error al enviar mensaje de WhatsApp" }); // Devuelve un error para que se maneje en la aplicación
+                }
+            } else {
+                console.error('Número de teléfono del usuario no disponible.');
             }
 
             res.json(pedidoGuardado);
