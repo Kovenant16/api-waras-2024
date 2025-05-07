@@ -172,33 +172,59 @@ export async function enviarMensajeAsignacion(sockInstance, numero, mensaje) {
     }
 }
 
-export async function enviarCodigoVerificacionWhatsApp(telefono, codigo, intentos = 0, maxIntentos = 3) {
+export async function enviarCodigoVerificacionWhatsApp(telefonoConCodigo, codigo) {
     const mensaje = `Tu código de verificación para Waras Delivery es: *${codigo}*`;
-    const numeroWhatsApp = `${telefono}@s.whatsapp.net`;
+    // Formatear el número de teléfono eliminando el '+' y el código de país (si es necesario)
+    let telefonoParaWhatsApp = telefonoConCodigo;
+    if (telefonoConCodigo.startsWith('+')) {
+        telefonoParaWhatsApp = telefonoConCodigo.substring(telefonoConCodigo.indexOf('9'));
+    }
+    const numeroWhatsApp = `${telefonoParaWhatsApp}@s.whatsapp.net`;
 
     try {
-        if (sock && isConnected) { // Verificar sock y isConnected aquí
+        if (sock && isConnected) {
             await sock.sendMessage(numeroWhatsApp, { text: mensaje });
-            console.log(`✅ Código de verificación enviado a ${telefono} (WhatsApp: ${numeroWhatsApp}), Intento: ${intentos + 1}: ${codigo}`);
-            return true; // Indica que el envío fue exitoso
+            console.log(`✅ Código de verificación enviado a ${telefonoConCodigo} (WhatsApp: ${numeroWhatsApp}): ${codigo}`);
+            return { success: true }; // Indica éxito
         } else {
-            console.log('⚠️ El socket de WhatsApp no está inicializado o no conectado (en enviarCodigoVerificacionWhatsApp).');
-            if (intentos < maxIntentos) {
-                console.log(`🔄 Reintentando enviar el código a ${telefono} en 5 segundos...`);
-                await new Promise(resolve => setTimeout(resolve, 5000));
-                return await enviarCodigoVerificacionWhatsApp(telefono, codigo, intentos + 1, maxIntentos);
-            }
-            console.error('❌ No se pudo enviar el código de verificación después de varios intentos.');
-            return false; // Indica que el envío falló
+            console.log('⚠️ El socket de WhatsApp no está inicializado o no conectado.');
+            return { success: false, message: 'Servicio de WhatsApp no disponible.' };
         }
     } catch (error) {
-        console.error(`❌ Error al enviar el código de verificación a ${telefono} (Intento ${intentos + 1}):`, error);
-        if (error.message === 'Timed Out' && intentos < maxIntentos) {
-            console.log(`🔄 Reintentando enviar el código a ${telefono} en 5 segundos...`);
-            await new Promise(resolve => setTimeout(resolve, 5000));
-            return await enviarCodigoVerificacionWhatsApp(telefono, codigo, intentos + 1, maxIntentos);
+        console.error(`❌ Error al enviar el código de verificación a ${telefonoConCodigo}:`, error);
+        return { success: false, message: 'Error al enviar el código de verificación: ' + error.message };
+    }
+}
+
+async function generarCodigoVerificacion(longitud = 4) {
+    const min = Math.pow(10, longitud - 1);
+    const max = Math.pow(10, longitud) - 1;
+    return Math.floor(Math.random() * (max - min + 1) + min).toString().padStart(longitud, '0');
+}
+
+export async function iniciarLoginCliente(telefonoConCodigo) {
+    // Eliminar el "+" y el código de país si están presentes al inicio para el envío por WhatsApp
+    let telefonoSinCodigo = telefonoConCodigo;
+    const codigoPais = telefonoConCodigo.substring(1, telefonoConCodigo.indexOf('9')); // Asumiendo '+' seguido del código y luego el número
+    if (telefonoSinCodigo.startsWith('+')) {
+        telefonoSinCodigo = telefonoSinCodigo.substring(1);
+    }
+
+    const numeroWhatsApp = `${telefonoSinCodigo}@s.whatsapp.net`;
+    const codigoVerificacion = await generarCodigoVerificacion();
+    const mensaje = `Tu código de verificación para iniciar sesión en Waras Delivery es: *${codigoVerificacion}*`;
+
+    try {
+        if (!sock || !isConnected) {
+            console.log('⚠️ No se puede enviar el código de login, socket no conectado.');
+            return { success: false, message: 'Servicio de WhatsApp no disponible.' };
         }
-        console.error('❌ Error fatal al intentar enviar el código de verificación.');
-        return false;
+
+        await sock.sendMessage(numeroWhatsApp, { text: mensaje });
+        console.log(`✅ Código de login enviado a ${telefonoConCodigo} (${numeroWhatsApp}): ${codigoVerificacion}`);
+        return { success: true, codigo: codigoVerificacion, telefono: telefonoConCodigo }; // Devolver el código para verificar después
+    } catch (error) {
+        console.error('❌ Error al enviar el código de login:', error);
+        return { success: false, message: 'Error al enviar el código de verificación.' };
     }
 }
