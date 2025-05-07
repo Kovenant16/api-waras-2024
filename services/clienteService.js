@@ -78,32 +78,37 @@ const verificarCodigoCliente = async (req, res) => {
     }
 };
 
-export async function enviarCodigoVerificacion(telefonoConCodigo, codigo) {
-    const mensaje = `Tu código de verificación es: *${codigo}*`;
-    let telefonoParaWhatsApp = telefonoConCodigo;
-
-    // Verificar si el número comienza con el código de país (ej, +51)
-    if (telefonoParaWhatsApp.startsWith('+')) {
-        const codigoPais = telefonoParaWhatsApp.substring(1, telefonoParaWhatsApp.indexOf(telefonoParaWhatsApp[1]));
-        telefonoParaWhatsApp = telefonoParaWhatsApp.substring(codigoPais.length + 1); // Eliminar el "+" y el código de país
-    }
-
-    const numeroWhatsApp = `${telefonoParaWhatsApp}@s.whatsapp.net`;
+const enviarCodigoVerificacion = async (req, res) => {
+    const { telefono, codigoPais } = req.body;
+    const telefonoConCodigo = codigoPais + telefono;
+    const codigoVerificacion = generarCodigoVerificacion();
 
     try {
-        if (!sock || !isConnected) {
-            console.log('⚠️ WhatsApp no conectado. No se puede enviar el código.');
-            return { success: false, message: 'WhatsApp no está conectado' };
+        const expireAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutos
+
+        await Verificacion.findOneAndUpdate(
+            { telefono: telefonoConCodigo },
+            { codigo: codigoVerificacion, expireAt },
+            { upsert: true, setDefaultsOnInsert: true }
+        );
+
+        // Formatear el número para enviar a WhatsApp (eliminar el "+" si existe)
+        let telefonoParaWhatsApp = telefonoConCodigo;
+        if (telefonoParaWhatsApp.startsWith('+')) {
+           telefonoParaWhatsApp = telefonoParaWhatsApp.substring(1);
         }
 
-        await sock.sendMessage(numeroWhatsApp, { text: mensaje });
-        console.log(`✅ Código enviado a ${telefonoConCodigo} (${numeroWhatsApp}): ${codigo}`);
-        return { success: true };
+        const resultadoEnvio = await enviarCodigoVerificacionWhatsApp(telefonoParaWhatsApp, codigoVerificacion);
+
+        if (resultadoEnvio.success) {
+            res.json({ mensaje: "Código enviado correctamente" });
+        } else {
+            res.status(500).json({ error: resultadoEnvio.message });
+        }
     } catch (error) {
-        console.error(`❌ Error al enviar código a ${telefonoConCodigo}:`, error);
-        return { success: false, message: 'Error al enviar código: ' + error.message };
+        res.status(500).json({ error: "Error al enviar el código: " + error.message });
     }
-}
+};
 
 
-export { registrarNuevoCliente, verificarCodigoCliente };
+export { registrarNuevoCliente, verificarCodigoCliente, enviarCodigoVerificacion };
