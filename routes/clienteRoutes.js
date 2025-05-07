@@ -2,12 +2,18 @@ import express from 'express';
 import {
     registrarNuevoCliente,
     verificarCodigoCliente,
-} from '../services/clienteService.js'; // Importa el servicio
+    enviarCodigoVerificacion, // Importa la nueva función desde el servicio
+} from '../services/clienteService.js';
 
 const router = express.Router();
 
-router.post("/registrar", registrarNuevoCliente); // Usa la función del servicio
+// Ruta para registrar un nuevo cliente
+router.post("/registrar", registrarNuevoCliente);
+
+// Ruta para verificar el código de verificación ingresado por el cliente
 router.post("/verificar-codigo", verificarCodigoCliente);
-// Otras rutas de cliente (obtener, actualizar, eliminar) irían aquí
+
+// Nueva ruta para enviar el código de verificación directamente
+router.post("/enviar-codigo", enviarCodigoVerificacion); // Usa la función del servicio
 
 export default router;
