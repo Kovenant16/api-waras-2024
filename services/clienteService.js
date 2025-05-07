@@ -78,7 +78,7 @@ const verificarCodigoCliente = async (req, res) => {
     }
 };
 
-export async function enviarCodigoVerificacionWhatsApp(telefonoConCodigo, codigo) {
+export async function enviarCodigoVerificacion(telefonoConCodigo, codigo) {
     const mensaje = `Tu código de verificación es: *${codigo}*`;
     let telefonoParaWhatsApp = telefonoConCodigo;
 
@@ -106,4 +106,4 @@ export async function enviarCodigoVerificacionWhatsApp(telefonoConCodigo, codigo
 }
 
 
-export { registrarNuevoCliente, verificarCodigoCliente, enviarCodigoVerificacion };
+export { registrarNuevoCliente, verificarCodigoCliente };
