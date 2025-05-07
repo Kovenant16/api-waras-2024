@@ -49,51 +49,80 @@ const verificarCodigoCliente = async (req, res) => {
     const { telefono, codigo, codigoPais } = req.body;
     const telefonoConCodigo = codigoPais + telefono;
 
+    console.log('➡️ Verificando código para:', telefonoConCodigo);
+    console.log('Código recibido:', codigo);
+
     try {
         const query = { telefono: telefonoConCodigo };
         const verificacion = await Verificacion.findOne(query);
+        console.log('🔍 Resultado de búsqueda en Verificacion:', verificacion);
+
         if (!verificacion) {
             return res.status(404).json({ error: 'Código de verificación no encontrado o expirado.' });
         }
+
         const ahora = new Date();
+        console.log('🕒 Fecha actual:', ahora);
+        console.log('📅 Fecha de expiración:', verificacion.expireAt);
+
         if (verificacion.codigo === codigo && verificacion.expireAt > ahora) {
-            // Modificamos la búsqueda y creación del cliente para usar codigoPais
-            let cliente = await Cliente.findOne({ telefono: telefonoConCodigo });
+            console.log('✅ Código válido y no expirado.');
+
+            // Buscar el cliente con o sin código de país
+            let cliente = await Cliente.findOne({
+                $or: [
+                    { telefono: telefonoConCodigo },
+                    { telefono: telefono }
+                ]
+            });
+
+            console.log('🔍 Resultado de búsqueda en Cliente:', cliente);
+
             if (cliente) {
+                // Actualizar el teléfono si estaba guardado sin código
+                if (cliente.telefono !== telefonoConCodigo) {
+                    cliente.telefono = telefonoConCodigo;
+                    cliente.codigoPais = codigoPais;
+                    await cliente.save();
+                    console.log("📌 Cliente actualizado con formato de teléfono unificado.");
+                }
+
                 const token = generarToken(cliente._id);
+                console.log('🔐 Token generado para cliente existente.');
                 res.json({ mensaje: 'Verificación exitosa.', token, cliente });
             } else {
-                //ANTES:
-                // cliente = await Cliente.create({
-                //     telefono: telefonoConCodigo,
-                //     codigoPais: codigoPais,
-                //     ...req.body
-                // });
-                //DESPUES:
-                 const nuevoCliente = new Cliente({
+                console.log('🆕 Cliente no encontrado. Intentando crearlo...');
+                const nuevoCliente = new Cliente({
                     telefono: telefonoConCodigo,
                     codigoPais: codigoPais,
                     ...req.body
                 });
-                try{
-                  await nuevoCliente.save();
-                  const token = generarToken(nuevoCliente._id);
-                  res.json({ mensaje: 'Verificación exitosa. Nuevo cliente creado.', token, cliente: nuevoCliente });
-                }catch(error){
-                   console.error("Error al crear el cliente:", error);
-                   return res.status(500).json({ error: "Error al crear el cliente: " + error.message });
+
+                try {
+                    await nuevoCliente.save();
+                    const token = generarToken(nuevoCliente._id);
+                    console.log('🟢 Nuevo cliente creado y token generado.');
+                    res.json({ mensaje: 'Verificación exitosa. Nuevo cliente creado.', token, cliente: nuevoCliente });
+                } catch (error) {
+                    console.error("❌ Error al crear el cliente:", error);
+                    return res.status(500).json({ error: "Error al crear el cliente: " + error.message });
                 }
-               
             }
+
             await Verificacion.deleteOne({ telefono: telefonoConCodigo });
+            console.log('🗑️ Código de verificación eliminado.');
         } else {
+            console.log('❌ Código inválido o expirado.');
             res.status(400).json({ error: 'Código de verificación incorrecto o expirado.' });
         }
     } catch (error) {
-        console.error('Error al verificar código:', error);
+        console.error('💥 Error al verificar código:', error);
         res.status(500).json({ error: 'Error al verificar código: ' + error.message });
     }
 };
+
+
+
   
 
 
