@@ -49,30 +49,45 @@ const verificarCodigoCliente = async (req, res) => {
     const { telefono, codigo, codigoPais } = req.body;
     const telefonoConCodigo = codigoPais + telefono;
 
+    console.log("Datos de la petición:", { telefono, codigo, codigoPais });
+
     try {
-        const verificacion = await Verificacion.findOne({ telefono: telefonoConCodigo });
+        console.log("Teléfono a buscar en Verificacion:", telefonoConCodigo);
+        const query = { telefono: telefonoConCodigo };
+        console.log("Consulta a Verificacion:", query);
+        const verificacion = await Verificacion.findOne(query);
+        console.log("Resultado de la búsqueda en Verificacion:", verificacion);
 
         if (!verificacion) {
+            console.log("Código de verificación no encontrado o expirado");
             return res.status(404).json({ error: 'Código de verificación no encontrado o expirado.' });
         }
 
-        if (verificacion.codigo === codigo && verificacion.expireAt > new Date()) {
+        console.log("Código enviado por el cliente:", codigo);
+        console.log("Código en la base de datos:", verificacion.codigo);
+        console.log("Fecha de expiración (BD):", verificacion.expireAt);
+        const ahora = new Date();
+        console.log("Fecha actual:", ahora);
+
+        if (verificacion.codigo === codigo && verificacion.expireAt > ahora) {
+            console.log("Código de verificación válido");
             let cliente = await Cliente.findOne({ telefono: telefonoConCodigo });
+            console.log("Resultado de la búsqueda en Cliente:", cliente);
 
             if (cliente) {
-                // Si el cliente existe, solo devuelve sus datos
                 const token = generarToken(cliente._id);
+                console.log("Cliente encontrado, devolviendo datos");
                 res.json({ mensaje: 'Verificación exitosa.', token, cliente });
             } else {
-                // Si el cliente no existe, lo crea
                 cliente = await Cliente.create({ telefono: telefonoConCodigo, ...req.body });
                 console.log(`Cliente creado tras verificación: ${telefonoConCodigo}`);
                 const token = generarToken(cliente._id);
                 res.json({ mensaje: 'Verificación exitosa. Nuevo cliente creado.', token, cliente });
             }
             await Verificacion.deleteOne({ telefono: telefonoConCodigo });
-
+            console.log("Registro de verificación eliminado");
         } else {
+            console.log("Código de verificación incorrecto o expirado");
             res.status(400).json({ error: 'Código de verificación incorrecto o expirado.' });
         }
     } catch (error) {
@@ -80,6 +95,8 @@ const verificarCodigoCliente = async (req, res) => {
         res.status(500).json({ error: 'Error al verificar código: ' + error.message });
     }
 };
+
+
 
 const enviarCodigoVerificacion = async (req, res) => {
     const { telefono, codigoPais } = req.body;
