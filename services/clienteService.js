@@ -59,16 +59,19 @@ const verificarCodigoCliente = async (req, res) => {
         if (verificacion.codigo === codigo && verificacion.expireAt > new Date()) {
             let cliente = await Cliente.findOne({ telefono: telefonoConCodigo });
 
-            if (!cliente) {
-                cliente = await Cliente.create({ telefono: telefonoConCodigo,  ...req.body });
+            if (cliente) {
+                // Si el cliente existe, solo devuelve sus datos
+                const token = generarToken(cliente._id);
+                res.json({ mensaje: 'Verificación exitosa.', token, cliente });
+            } else {
+                // Si el cliente no existe, lo crea
+                cliente = await Cliente.create({ telefono: telefonoConCodigo, ...req.body });
                 console.log(`Cliente creado tras verificación: ${telefonoConCodigo}`);
+                const token = generarToken(cliente._id);
+                res.json({ mensaje: 'Verificación exitosa. Nuevo cliente creado.', token, cliente });
             }
-
             await Verificacion.deleteOne({ telefono: telefonoConCodigo });
 
-            const token = generarToken(cliente._id);
-
-            res.json({ mensaje: 'Verificación exitosa.', token, cliente });
         } else {
             res.status(400).json({ error: 'Código de verificación incorrecto o expirado.' });
         }
