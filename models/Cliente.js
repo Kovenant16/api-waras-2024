@@ -9,6 +9,10 @@ const clienteSchema = mongoose.Schema(
         telefono: {
             type: String,
         },
+        codigoPais: { // Nuevo campo para el código de país
+            type: String,
+            default: '+51' // Puedes establecer un valor por defecto si la mayoría son de un país
+        },
         ubicaciones: [
             {
                 nombreUbicacion: {
