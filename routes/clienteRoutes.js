@@ -18,7 +18,7 @@ router.post("/verificar-codigo", verificarCodigoCliente);
 router.post("/enviar-codigo", enviarCodigoVerificacion); // Usa la función del servicio
 
 // Ruta para editar un cliente
-router.put('/clientes/:id', editarCliente);
+router.put('/:id', editarCliente);
 
 
 export default router;

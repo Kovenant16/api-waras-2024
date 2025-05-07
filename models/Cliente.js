@@ -8,6 +8,7 @@ const clienteSchema = mongoose.Schema(
         },
         telefono: {
             type: String,
+            unique: true,
         },
         codigoPais: { // Nuevo campo para el código de país
             type: String,
