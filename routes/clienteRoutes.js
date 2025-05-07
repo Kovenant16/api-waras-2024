@@ -1,16 +1,13 @@
 import express from 'express';
 import {
-    registrarCliente,
-    buscarClientesPorTelefono,
-    verificarCodigoCliente // Asegúrate de importar esta función
-} from '../controllers/clienteController.js';
-import checkAuth from '../middleware/checkAuth.js'; // Si tienes middleware de autenticación
-import { registrarNuevoCliente } from '../services/clienteService.js';
+    registrarNuevoCliente,
+    verificarCodigoCliente,
+} from '../services/clienteService.js'; // Importa el servicio
 
 const router = express.Router();
 
-router.post("/registrar", registrarNuevoCliente);
-router.post("/buscar", buscarClientesPorTelefono);
-router.post("/verificar-codigo", verificarCodigoCliente); // Nueva ruta para verificar el código
+router.post("/registrar", registrarNuevoCliente); // Usa la función del servicio
+router.post("/verificar-codigo", verificarCodigoCliente);
+// Otras rutas de cliente (obtener, actualizar, eliminar) irían aquí
 
 export default router;
