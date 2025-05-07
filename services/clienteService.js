@@ -63,13 +63,27 @@ const verificarCodigoCliente = async (req, res) => {
                 const token = generarToken(cliente._id);
                 res.json({ mensaje: 'Verificación exitosa.', token, cliente });
             } else {
-                cliente = await Cliente.create({ 
-                    telefono: telefonoConCodigo, 
-                    codigoPais: codigoPais, // Guardamos el código de país
-                    ...req.body 
+                //ANTES:
+                // cliente = await Cliente.create({
+                //     telefono: telefonoConCodigo,
+                //     codigoPais: codigoPais,
+                //     ...req.body
+                // });
+                //DESPUES:
+                 const nuevoCliente = new Cliente({
+                    telefono: telefonoConCodigo,
+                    codigoPais: codigoPais,
+                    ...req.body
                 });
-                const token = generarToken(cliente._id);
-                res.json({ mensaje: 'Verificación exitosa. Nuevo cliente creado.', token, cliente });
+                try{
+                  await nuevoCliente.save();
+                  const token = generarToken(nuevoCliente._id);
+                  res.json({ mensaje: 'Verificación exitosa. Nuevo cliente creado.', token, cliente: nuevoCliente });
+                }catch(error){
+                   console.error("Error al crear el cliente:", error);
+                   return res.status(500).json({ error: "Error al crear el cliente: " + error.message });
+                }
+               
             }
             await Verificacion.deleteOne({ telefono: telefonoConCodigo });
         } else {
