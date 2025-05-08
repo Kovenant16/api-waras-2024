@@ -121,17 +121,18 @@ const verificarCodigoCliente = async (req, res) => {
     }
 };
 
+
 const obtenerClientePorId = async (req, res) => {
     const { id } = req.params;
 
     try {
-        const cliente = await Cliente.findById(id);
+        const cliente = await Cliente.findById(id).select('-pedidos -createdAt -updatedAt -__v');
 
         if (!cliente) {
             return res.status(404).json({ mensaje: 'Cliente no encontrado' });
         }
 
-        res.json({ mensaje: 'Cliente encontrado', cliente });
+        res.json(cliente);
     } catch (error) {
         console.error('Error al obtener cliente por ID:', error);
         res.status(500).json({ error: 'Error al obtener el cliente: ' + error.message });

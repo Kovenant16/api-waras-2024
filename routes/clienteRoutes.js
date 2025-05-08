@@ -21,7 +21,7 @@ router.post("/enviar-codigo", enviarCodigoVerificacion); // Usa la función del 
 // Ruta para editar un cliente
 router.put('/:id', editarCliente);
 
-router.get('obtenerCliente/:id', obtenerClientePorId);
+router.get('/obtenerCliente/:id', obtenerClientePorId);
 
 
 export default router;
