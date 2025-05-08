@@ -530,11 +530,11 @@ const asignarMotorizado = async (req, res) => {
                 const numeroWhatsApp = `51${driver.telefono}`;
                 let nombresLocales = '';
                 if (local && Array.isArray(local) && local.length > 0) {
-                    nombresLocales = local.map(loc => loc.nombre).join(', ');
+                    nombresLocales = local.map(loc => loc.nombre.toUpperCase()).join(', '); // Convierte a mayúsculas
                 } else {
                     nombresLocales = 'Nombre no disponible';
                 }
-                const mensajeWhatsApp = `Pedido asignado✅:\n${nombresLocales} - ${pedido.hora}\n${pedido.direccion}`;
+                const mensajeWhatsApp = `🛵 ¡Nuevo Pedido Asignado! ✅\n\n*Local(es):* _${nombresLocales}_\n*Hora:* ${pedido.hora}\n*Dirección:* ${pedido.direccion}`;
                 try {
                     // Intenta enviar el mensaje
                     await enviarMensajeAsignacion(numeroWhatsApp, mensajeWhatsApp);
