@@ -13,7 +13,9 @@ import {
     obtenerProductosPorTiendaAdmin,
     obtenerTiendasMenuDiario,
     obtenerVersionCarta,
-    cambiarEstadoTaper
+    cambiarEstadoTaper,
+    buscarProductosPorNombre
+    
 } from '../controllers/productoController.js'
 import checkAuth from '../middleware/checkAuth.js';
 
@@ -33,5 +35,6 @@ router.post("/obtenerProductosPorTiendaAdmin", obtenerProductosPorTiendaAdmin)
 router.post("/obtenerProductosPorCategoria", obtenerProductosPorCategoria)
 router.put("/toggleDisponibilidad/:id", toggleDisponibilidadProducto);
 router.patch('/:id/taper', cambiarEstadoTaper);
+router.post("/buscarProducto", buscarProductosPorNombre);
 
 export default router;

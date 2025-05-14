@@ -105,6 +105,32 @@ const obtenerProductosPorTienda = async (req, res) => {
     }
 };
 
+const buscarProductosPorNombre = async (req, res) => {
+    const { nombre, page = 1, limit = 10 } = req.body; // Añade parámetros page y limit con valores por defecto
+  
+    try {
+      const skip = (page - 1) * limit; // Calcula cuántos documentos saltar
+  
+      const productos = await Producto.find({
+        nombre: { $regex: nombre, $options: 'i' }
+      })
+        .populate('local', 'nombre urlLogo adicionalPorTaper')
+        .select('nombre descripcion precio cover')
+        .skip(skip) // Salta los documentos necesarios
+        .limit(limit); // Limita el número de resultados por página
+  
+      if (!productos || productos.length === 0) {
+        return res.status(404).json({ mensaje: 'No se encontraron productos con ese nombre' });
+      }
+  
+      res.json(productos);
+    } catch (error) {
+      console.error('Error al buscar productos por nombre:', error);
+      res.status(500).json({ error: 'Error al buscar productos: ' + error.message });
+    }
+  };
+  
+
 const obtenerVersionCarta = async (req, res) => {
     const { idLocal } = req.body;
 
@@ -425,6 +451,7 @@ export {
     obtenerProductosPorTiendaSinVersion,
     obtenerVersionCarta,
     cambiarEstadoTaper,
-    obtenerTiendasMenuDiario
+    obtenerTiendasMenuDiario,
+    buscarProductosPorNombre
 
 };
