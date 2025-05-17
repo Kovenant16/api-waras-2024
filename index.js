@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from "dotenv";
+import { v2 as cloudinary } from 'cloudinary';
 import conectarDB from './config/db.js';
 import usuarioRoutes from "./routes/usuarioRoutes.js";
 import pedidoRoutes from "./routes/pedidoRoutes.js";
@@ -11,12 +12,19 @@ import categoriaRoutes from "./routes/categoriaRoutes.js";
 import ordenesClienteRoutes from "./routes/ordenesClienteRoutes.js";
 import asistenciaRoutes from "./routes/asistenciaRoutes.js";
 import ventaRoutes from "./routes/ventaRoutes.js";
+import cloudinaryRoutes from './routes/cloudinaryRoutes.js';
 
 import { startSock } from './bot/botWhatsapp.js';
 
 import http from 'http';
 import pedidos from './sockets/pedidos.js';
 import { Server as WebsocketServer } from 'socket.io';
+
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+  });
 
 dotenv.config();
 
@@ -33,8 +41,9 @@ app.use("/api/categoria", categoriaRoutes);
 app.use("/api/ordenes", ordenesClienteRoutes);
 app.use("/api/asistencia", asistenciaRoutes);
 app.use("/api/ventas", ventaRoutes);
+app.use('/api/cloudinary',cloudinaryRoutes)
 
-const PORT = 4000;
+const PORT = process.env.PORT || 4000; // Lee la variable de entorno PORT o usa 4000 si no está definidaaa
 
 const iniciarServidores = (httpServer) => {
     httpServer.listen(PORT, () => {
