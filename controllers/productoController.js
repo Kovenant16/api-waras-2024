@@ -114,7 +114,7 @@ const buscarProductosPorNombre = async (req, res) => {
       const productos = await Producto.find({
         nombre: { $regex: nombre, $options: 'i' }
       })
-        .populate('local', 'nombre urlLogo adicionalPorTaper')
+        .populate('local', 'nombre urlLogo adicionalPorTaper tienda')
         .select('nombre descripcion precio cover')
         .skip(skip) // Salta los documentos necesarios
         .limit(limit); // Limita el número de resultados por página
