@@ -58,7 +58,7 @@ export async function startSock() {
 
             const remoteJid = msg.key.remoteJid;
             console.log("remote Jid", remoteJid);
-            
+
             if (remoteJid.endsWith('@g.us')) return; // Ignorar mensajes de grupos
 
             console.log('ℹ️ Estado de la conexión al recibir un mensaje:', isConnected);
@@ -134,6 +134,7 @@ export async function startSock() {
 El costo de entrega desde *${capitalizarNombre(local.nombre)}* hasta la ubicación es:  
 💰 *S/ ${price}*  
 📍 Distancia aprox: *${(distance * 1.2).toFixed(2)} km*
+coords:  ${latitude}${longitude}
 
 Si estás de acuerdo, estamos listos para programar el pedido.`
                     });
