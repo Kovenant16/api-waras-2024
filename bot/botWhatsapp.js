@@ -134,7 +134,7 @@ export async function startSock() {
 El costo de entrega desde *${capitalizarNombre(local.nombre)}* hasta la ubicación es:  
 💰 *S/ ${price}*  
 📍 Distancia aprox: *${(distance * 1.2).toFixed(2)} km*
-coords:  ${latitude}${longitude}
+coords:  ${latitude},${longitude}
 
 Si estás de acuerdo, estamos listos para programar el pedido.`
                     });
