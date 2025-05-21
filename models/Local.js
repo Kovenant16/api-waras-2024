@@ -69,6 +69,12 @@ const localSchema = mongoose.Schema(
         idTelegram:{
             type:String
         },
+        tipo: {
+            type: String,
+            required: true, // Esto significa que cada tienda debe tener un tipo
+            enum: ['comida', 'mercado', 'farmacia', 'licores', 'regalos', 'otros'], // Define tus categorías aquí
+            default: 'comida', // Un valor por defecto si no se especifica
+        },
     },
     {
         timestamps: true,
