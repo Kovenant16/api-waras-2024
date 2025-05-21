@@ -4,7 +4,7 @@ import Local from "../models/Local.js";
 
 
 const obtenerTiendas = async (req, res) => {
-    const tiendas = await Local.find({ tienda: true }).select("nombre direccion gps urlLogo diasAbiertos telefonoUno ruta horario ubicacion tiempoPreparacion horaInicioFin adicionalPorTaper tags");
+    const tiendas = await Local.find({ tienda: true }).select("nombre direccion gps urlLogo diasAbiertos telefonoUno ruta horario ubicacion tiempoPreparacion horaInicioFin adicionalPorTaper tags tipo");
     res.json(tiendas);
     console.log('tiendas obtenidas');
 }
