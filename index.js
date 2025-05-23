@@ -13,6 +13,7 @@ import ordenesClienteRoutes from "./routes/ordenesClienteRoutes.js";
 import asistenciaRoutes from "./routes/asistenciaRoutes.js";
 import ventaRoutes from "./routes/ventaRoutes.js";
 import cloudinaryRoutes from './routes/cloudinaryRoutes.js';
+import envioPaqueteRoutes from './routes/envioPaqueteRoutes.js';
 
 import { startSock } from './bot/botWhatsapp.js';
 
@@ -41,7 +42,8 @@ app.use("/api/categoria", categoriaRoutes);
 app.use("/api/ordenes", ordenesClienteRoutes);
 app.use("/api/asistencia", asistenciaRoutes);
 app.use("/api/ventas", ventaRoutes);
-app.use('/api/cloudinary',cloudinaryRoutes)
+app.use('/api/cloudinary',cloudinaryRoutes);
+app.use('/api/envioPaquete', envioPaqueteRoutes);
 
 const PORT = process.env.PORT || 4000; // Lee la variable de entorno PORT o usa 4000 si no está definidaaa
 
