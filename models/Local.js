@@ -69,6 +69,12 @@ const localSchema = mongoose.Schema(
         idTelegram:{
             type:String
         },
+        ratingPromedio:{
+            type:Number,
+            default:0,
+            min:0,
+            max:5
+        },
         tipo: {
             type: String,
             required: true, // Esto significa que cada tienda debe tener un tipo

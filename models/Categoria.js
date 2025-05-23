@@ -2,9 +2,9 @@ import mongoose from "mongoose";
 
 const categoriaSchema = mongoose.Schema(
     {
-        nombre:String,
-        descripcion:String,
-        cover:String
+        nombre:{type: String, required: true, trim: true},
+        descripcion:{type: String, trim: true},
+        cover:{type: String}
     }
 );
 
