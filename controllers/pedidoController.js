@@ -1362,10 +1362,7 @@ export function calculateDistanceAndPrice(start, end, coordenadasPoligonoInicial
         end.lat,
         end.lng
     );
-
-    // Para depuración
-    console.log(`Punto inicio: ${JSON.stringify(start)}`);
-    console.log(`Punto fin: ${JSON.stringify(end)}`);
+   
     
     // Verificar si los puntos están dentro de los polígonos
     const startInsideInitialPolygon = pointInPolygon(start, coordenadasPoligonoInicial);
@@ -1374,11 +1371,7 @@ export function calculateDistanceAndPrice(start, end, coordenadasPoligonoInicial
     const startInsideSecondaryPolygon = pointInPolygon(start, coordenadasPoligonoSecundario);
     const endInsideSecondaryPolygon = pointInPolygon(end, coordenadasPoligonoSecundario);
     
-    // Para depuración
-    console.log(`Inicio en polígono inicial: ${startInsideInitialPolygon}`);
-    console.log(`Fin en polígono inicial: ${endInsideInitialPolygon}`);
-    console.log(`Inicio en polígono secundario: ${startInsideSecondaryPolygon}`);
-    console.log(`Fin en polígono secundario: ${endInsideSecondaryPolygon}`);
+   
 
     // Regla 1: Si cualquier punto está fuera del polígono secundario, no hay servicio
     if (!startInsideSecondaryPolygon || !endInsideSecondaryPolygon) {
