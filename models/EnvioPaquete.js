@@ -153,6 +153,10 @@ const envioPaqueteSchema = mongoose.Schema(
             type: String,
             default: null,
         },
+        cliente:{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Cliente",
+        }
     },
     {
         timestamps: true,
