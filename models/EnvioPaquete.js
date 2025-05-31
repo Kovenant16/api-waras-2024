@@ -42,7 +42,6 @@ const envioPaqueteSchema = mongoose.Schema(
         recojo: {
             direccion: {
                 type: String,
-                required: true,
                 trim: true,
             },
             referencia: {
@@ -51,7 +50,6 @@ const envioPaqueteSchema = mongoose.Schema(
             },
             telefonoContacto: {
                 type: String,
-                required: true,
                 trim: true,
             },
             detallesAdicionales: { // Detalles específicos para el recojo
@@ -74,7 +72,6 @@ const envioPaqueteSchema = mongoose.Schema(
         entrega: {
             direccion: {
                 type: String,
-                required: true,
                 trim: true,
             },
             referencia: {
@@ -104,7 +101,6 @@ const envioPaqueteSchema = mongoose.Schema(
         // --- Nuevos campos desde el modal de confirmación ---
         medioDePago: {
             type: String,
-            required: true,
             default: "efectivo",
             enum: ["efectivo", "plin", "yape", "tarjeta", "otro"],
         },
