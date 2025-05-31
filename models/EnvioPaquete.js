@@ -30,13 +30,11 @@ const envioPaqueteSchema = mongoose.Schema(
         // **costoEnvio es el único campo para el precio total del servicio de delivery.**
         costoEnvio: {
             type: Number,
-            required: true,
             min: 0,
             // Este campo almacena el '_deliveryCost' de tu frontend, el monto total que el cliente debe pagar.
         },
         distanciaEnvioKm: {
             type: Number,
-            required: true,
             min: 0,
         },
 
@@ -85,7 +83,6 @@ const envioPaqueteSchema = mongoose.Schema(
             },
             telefonoContacto: {
                 type: String,
-                required: true,
                 trim: true,
             },
             detallesAdicionales: { // Detalles específicos para la entrega
