@@ -41,8 +41,8 @@ const crearEnvioPaquete = async (req, res) => {
                 telefonoContacto: pickupContactNumber, // Mapeo
                 detallesAdicionales: pickupAdditionalDetails, // Mapeo
                 gps: {
-                    latitude: pickupLocation.latitude,
-                    longitude: pickupLocation.longitude,
+                    latitude: pickupLocation['latitude'], // <-- ¡CORRECCIÓN!
+        longitude: pickupLocation['longitude'], // <-- ¡CORRECCIÓN!
                 },
             },
 
@@ -53,8 +53,8 @@ const crearEnvioPaquete = async (req, res) => {
                 telefonoContacto: deliveryContactNumber, // Mapeo
                 detallesAdicionales: deliveryAdditionalDetails, // Mapeo
                 gps: {
-                    latitude: deliveryLocation.latitude,
-                    longitude: deliveryLocation.longitude,
+                    latitude: deliveryLocation['latitude'], // <-- ¡CORRECCIÓN!
+        longitude: deliveryLocation['longitude'], // <-- ¡CORRECCIÓN!
                 },
             },
 
