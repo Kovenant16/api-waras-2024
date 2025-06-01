@@ -28,12 +28,12 @@ const crearEnvioPaquete = async (req, res) => {
             // si los usas con sus valores por defecto, o si el frontend los envía
         } = req.body;
 
-        // ***** NUEVOS LOGS CRÍTICOS *****
-        console.log('Valor de pickupLocation (DESPUÉS de desestructurar):', pickupLocation);
-        console.log('Tipo de pickupLocation (DESPUÉS de desestructurar):', typeof pickupLocation);
-        console.log('Valor de deliveryLocation (DESPUÉS de desestructurar):', deliveryLocation);
-        console.log('Tipo de deliveryLocation (DESPUÉS de desestructurar):', typeof deliveryLocation);
-        // *******************************
+        // // ***** NUEVOS LOGS CRÍTICOS *****
+        // console.log('Valor de pickupLocation (DESPUÉS de desestructurar):', pickupLocation);
+        // console.log('Tipo de pickupLocation (DESPUÉS de desestructurar):', typeof pickupLocation);
+        // console.log('Valor de deliveryLocation (DESPUÉS de desestructurar):', deliveryLocation);
+        // console.log('Tipo de deliveryLocation (DESPUÉS de desestructurar):', typeof deliveryLocation);
+        // // *******************************
 
 
         // Crea una nueva instancia del modelo EnvioPaquete,
