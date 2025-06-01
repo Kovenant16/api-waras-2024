@@ -1,6 +1,9 @@
 import EnvioPaquete from "../models/EnvioPaquete.js";
 
 const crearEnvioPaquete = async (req, res) => {
+
+    console.log('Backend Recibió req.body:', JSON.stringify(req.body, null, 2));
+    
     try {
         // Desestructura todos los campos tal como vienen del frontend
         const {
