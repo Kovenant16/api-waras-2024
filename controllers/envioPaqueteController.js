@@ -8,12 +8,12 @@ const crearEnvioPaquete = async (req, res) => {
         // Desestructura todos los campos tal como vienen del frontend
         const {
             pickupAddress,
-            pickupLocation,
+            //pickupLocation,
             pickupReference,
             pickupContactNumber,
             pickupAdditionalDetails,
             deliveryAddress,
-            deliveryLocation,
+            //deliveryLocation,
             deliveryReference,
             deliveryContactNumber,
             deliveryAdditionalDetails,
@@ -52,8 +52,9 @@ const crearEnvioPaquete = async (req, res) => {
                 telefonoContacto: pickupContactNumber, // Mapeo
                 detallesAdicionales: pickupAdditionalDetails, // Mapeo
                 gps: {
-                    latitude: pickupLocation['latitude'], // <-- ¡CORRECCIÓN!
-        longitude: pickupLocation['longitude'], // <-- ¡CORRECCIÓN!
+                    // ACCEDE DIRECTAMENTE A req.body.pickupLocation
+                    latitude: req.body.deliveryLocation['latitude'], // Prueba esto
+                    longitude: req.body.deliveryLocation['longitude'], // Prueba esto
                 },
             },
 
@@ -65,7 +66,7 @@ const crearEnvioPaquete = async (req, res) => {
                 detallesAdicionales: deliveryAdditionalDetails, // Mapeo
                 gps: {
                     latitude: deliveryLocation['latitude'], // <-- ¡CORRECCIÓN!
-        longitude: deliveryLocation['longitude'], // <-- ¡CORRECCIÓN!
+                    longitude: deliveryLocation['longitude'], // <-- ¡CORRECCIÓN!
                 },
             },
 
