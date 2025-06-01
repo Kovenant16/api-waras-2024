@@ -1,90 +1,71 @@
 import EnvioPaquete from "../models/EnvioPaquete.js";
 
 const crearEnvioPaquete = async (req, res) => {
-
-    console.log('Backend Recibió req.body:', JSON.stringify(req.body, null, 2));
-
     try {
-        // Desestructura todos los campos tal como vienen del frontend
+        console.log('Backend Recibió req.body:', JSON.stringify(req.body, null, 2));
+
+        // Desestructura solo los campos planos del primer nivel de req.body
+        // Los objetos 'recojo' y 'entrega' no los desestructuramos aquí
+        // porque los accederemos directamente desde req.body
         const {
-            pickupAddress,
-            //pickupLocation,
-            pickupReference,
-            pickupContactNumber,
-            pickupAdditionalDetails,
-            deliveryAddress,
-            //deliveryLocation,
-            deliveryReference,
-            deliveryContactNumber,
-            deliveryAdditionalDetails,
-            deliveryCost, // Este es el costoEnvio
-            deliveryDistance, // Esta es la distanciaEnvioKm
-            paymentMethod, // Este es el medioDePago
-            whoPaysDelivery, // Este es quienPagaEnvio
+            costoEnvio,
+            distanciaEnvioKm,
+            paymentMethod,
+            whoPaysDelivery,
             horaRecojoEstimada,
-            notes, // Este es notasPedido
-            clientId, // Este es el cliente
-            // No necesitas desestructurar "tipoPedido" o "estadoPedido"
-            // si los usas con sus valores por defecto, o si el frontend los envía
+            notes,
+            cliente, // Cambiado de 'clientId' a 'cliente' para coincidir con el body si no lo desestructuras como clientId
+            generadoPor, // Asegúrate de que esto venga o lo generes
+            // Si el frontend envía 'pickupAddress', 'pickupReference', etc. planos en el body,
+            // debes desestructurarlos aquí. Pero según tu último log, vienen DENTRO de 'recojo' y 'entrega'.
+            // Por lo tanto, ¡no deben estar en la desestructuración de primer nivel!
+            // Si tu frontend envía estos campos *como están en el log*, entonces NO los desestructuras aquí.
+            // Los accedes directamente desde req.body.recojo.direccion, etc.
         } = req.body;
 
-        // // ***** NUEVOS LOGS CRÍTICOS *****
-        // console.log('Valor de pickupLocation (DESPUÉS de desestructurar):', pickupLocation);
-        // console.log('Tipo de pickupLocation (DESPUÉS de desestructurar):', typeof pickupLocation);
-        // console.log('Valor de deliveryLocation (DESPUÉS de desestructurar):', deliveryLocation);
-        // console.log('Tipo de deliveryLocation (DESPUÉS de desestructurar):', typeof deliveryLocation);
-        // // *******************************
-
-
-        // Crea una nueva instancia del modelo EnvioPaquete,
-        // mapeando explícitamente los campos del frontend a la estructura del modelo.
+        // ACCEDEMOS DIRECTAMENTE A LAS PROPIEDADES ANIDADAS DEL req.body
+        // NO DESESTRUCTURAS LAS PROPIEDADES ANIDADAS EN EL NIVEL SUPERIOR
         const nuevoEnvio = new EnvioPaquete({
-            // Información general del pedido (directamente desde el frontend o con valores por defecto)
-            tipoPedido: "paqueteria", // Asumiendo que siempre es paqueteria
-            estadoPedido: "pendiente", // Asumiendo el estado inicial
-            costoEnvio: deliveryCost, // Mapeo
-            distanciaEnvioKm: deliveryDistance, // Mapeo
+            tipoPedido: req.body.tipoPedido || "paqueteria", // Puedes tomarlo del body o usar default
+            estadoPedido: "pendiente",
+            costoEnvio: costoEnvio,
+            distanciaEnvioKm: distanciaEnvioKm,
 
-            // Mapeo para Recojo (recuerda que tu modelo espera 'referencia', 'telefonoContacto', etc.)
             recojo: {
-                direccion: pickupAddress,
-                referencia: pickupReference, // Mapeo
-                telefonoContacto: pickupContactNumber, // Mapeo
-                detallesAdicionales: pickupAdditionalDetails, // Mapeo
+                // ACCEDEMOS A LAS PROPIEDADES DENTRO DE req.body.recojo
+                direccion: req.body.recojo.direccion,
+                referencia: req.body.recojo.referencia,
+                telefonoContacto: req.body.recojo.telefonoContacto,
+                detallesAdicionales: req.body.recojo.detallesAdicionales,
                 gps: {
-                    // ACCEDE DIRECTAMENTE A req.body.pickupLocation
-                    latitude: req.body.deliveryLocation['latitude'], // Prueba esto
-                    longitude: req.body.deliveryLocation['longitude'], // Prueba esto
+                    // ¡AHORA SÍ! ACCEDES A LA LATITUDE/LONGITUDE CORRECTAMENTE
+                    latitude: req.body.recojo.gps.latitude,
+                    longitude: req.body.recojo.gps.longitude,
                 },
             },
 
-            // Mapeo para Entrega
             entrega: {
-                direccion: deliveryAddress,
-                referencia: deliveryReference, // Mapeo
-                telefonoContacto: deliveryContactNumber, // Mapeo
-                detallesAdicionales: deliveryAdditionalDetails, // Mapeo
+                // ACCEDEMOS A LAS PROPIEDADES DENTRO DE req.body.entrega
+                direccion: req.body.entrega.direccion,
+                referencia: req.body.entrega.referencia,
+                telefonoContacto: req.body.entrega.telefonoContacto,
+                detallesAdicionales: req.body.entrega.detallesAdicionales,
                 gps: {
-                    latitude: deliveryLocation['latitude'], // <-- ¡CORRECCIÓN!
-                    longitude: deliveryLocation['longitude'], // <-- ¡CORRECCIÓN!
+                    // ¡AHORA SÍ! ACCEDES A LA LATITUDE/LONGITUDE CORRECTAMENTE
+                    latitude: req.body.entrega.gps.latitude,
+                    longitude: req.body.entrega.gps.longitude,
                 },
             },
 
-            // Mapeo para los campos del modal de confirmación
-            medioDePago: paymentMethod, // Mapeo
-            quienPagaEnvio: whoPaysDelivery, // Mapeo
+            medioDePago: paymentMethod,
+            quienPagaEnvio: whoPaysDelivery,
             horaRecojoEstimada: horaRecojoEstimada,
-            notasPedido: notes, // Mapeo
-
-            // Mapeo para el cliente (el frontend envía 'clientId', tu modelo espera 'cliente')
-            cliente: clientId, // Mapeo
-            generadoPor: clientId, // Si 'generadoPor' también es el cliente que hace el pedido
-            // driverAsignado, idMensajeTelegram, idTelegram, etc. (se pueden dejar por defecto o manejar después)
+            notasPedido: notes,
+            cliente: cliente, // Asume que 'cliente' viene directo en req.body
+            generadoPor: generadoPor, // Asume que 'generadoPor' viene directo en req.body
         });
 
-        // Guarda el nuevo envío en la base de datos
         const envioGuardado = await nuevoEnvio.save();
-
         res.status(201).json({
             msg: "Envío de paquete creado exitosamente",
             envio: envioGuardado
