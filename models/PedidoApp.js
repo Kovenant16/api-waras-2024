@@ -1,3 +1,5 @@
+// models/PedidoApp.js (o el nombre de tu archivo de modelo de pedido)
+
 import mongoose from "mongoose";
 
 // Sub-esquema para las opciones seleccionadas de un producto
@@ -29,18 +31,14 @@ const AppSelectedOptionDetailSchema = mongoose.Schema({
     },
 }, { _id: false }); // _id: false para que Mongoose no cree un _id para cada subdocumento de opción
 
-// Sub-esquema para los ítems del pedido
+// Sub-esquema para los ítems del pedido (MODIFICADO)
 const AppOrderItemSchema = mongoose.Schema({
     productId: {
-        type: String, // Usamos String porque el ID viene como String de Flutter
+        type: mongoose.Schema.Types.ObjectId, // CAMBIO: Ahora es ObjectId
+        ref: "Producto", // CAMBIO: Referencia al modelo "Producto"
         required: true,
         trim: true,
-    },
-    productName: {
-        type: String,
-        required: true,
-        trim: true,
-    },
+    },    
     quantity: {
         type: Number,
         required: true,
@@ -69,12 +67,17 @@ const AppCashPaymentDetailsSchema = mongoose.Schema({
     },
 }, { _id: false });
 
-// Sub-esquema para la dirección de entrega
+// Sub-esquema para la dirección de entrega (MODIFICADO)
 const AppDeliveryAddressSchema = mongoose.Schema({
     name: {
         type: String,
         trim: true,
         default: "Ubicación no seleccionada",
+    },
+    fullAddress: { // CAMBIO: NUEVO CAMPO para la dirección completa
+        type: String,
+        trim: true,
+        required: true, // Asumiendo que siempre se enviará
     },
     gps: {
         type: String, // "latitud,longitud"
@@ -83,27 +86,13 @@ const AppDeliveryAddressSchema = mongoose.Schema({
     },
 }, { _id: false });
 
-// Sub-esquema para los detalles de la tienda
+// Sub-esquema para los detalles de la tienda (MODIFICADO)
 const AppStoreDetailsSchema = mongoose.Schema({
-    storeName: {
-        type: String,
-        trim: true,
+    storeId: { // CAMBIO: Ahora solo se envía el ID de la tienda
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Local", // CAMBIO: Referencia al modelo "Local"
         required: true,
-    },
-    storeLat: {
-        type: Number,
-        required: false,
-    },
-    storeLng: {
-        type: Number,
-        required: false,
-    },
-    // Si tu Producto tiene un ID de tienda, podrías añadir:
-    // storeId: {
-    //     type: mongoose.Schema.Types.ObjectId,
-    //     ref: "Local", // Asumiendo que "Local" es tu modelo de tienda
-    //     required: true,
-    // }
+    },    
 }, { _id: false });
 
 // Esquema principal para pedidos generados desde la aplicación
@@ -115,7 +104,7 @@ const pedidoAppSchema = mongoose.Schema(
             ref: "Usuario", // O el nombre de tu modelo de usuario (Cliente, User, etc.)
             required: true,
         },
-        deliveryAddress: { // Usamos el sub-esquema para la dirección
+        deliveryAddress: { // Usamos el sub-esquema para la dirección (MODIFICADO)
             type: AppDeliveryAddressSchema,
             required: true,
         },
@@ -146,7 +135,7 @@ const pedidoAppSchema = mongoose.Schema(
             trim: true,
             default: "",
         },
-        orderItems: { // Array de ítems del pedido
+        orderItems: { // Array de ítems del pedido (MODIFICADO)
             type: [AppOrderItemSchema],
             required: true,
         },
@@ -154,7 +143,7 @@ const pedidoAppSchema = mongoose.Schema(
             type: Date, // Almacena la fecha y hora completas
             required: true,
         },
-        storeDetails: { // Detalles de la tienda de donde se realiza el pedido
+        storeDetails: { // Detalles de la tienda de donde se realiza el pedido (MODIFICADO)
             type: AppStoreDetailsSchema,
             required: true,
         },
@@ -186,11 +175,7 @@ const pedidoAppSchema = mongoose.Schema(
             ref: "Usuario", // Asumiendo que "Usuario" es el modelo para drivers
             default: null,
         },
-        // Posibles campos de timestamps manuales si necesitas un formato específico
-        // antes de guardar o para logs:
-        // horaRecojo: { type: String },
-        // horaLlegadaLocal: { type: String },
-        // horaEntrega: { type: String },
+        
 
         // Referencia a un posible mensaje de Telegram para notificaciones
         idMensajeTelegram: {
@@ -211,20 +196,6 @@ const pedidoAppSchema = mongoose.Schema(
         timestamps: true, // Mongoose automáticamente añade 'createdAt' y 'updatedAt'
     }
 );
-
-// Puedes añadir un middleware pre-save si necesitas transformar o calcular algo
-// antes de guardar, por ejemplo, si quieres guardar la fecha y hora por separado
-// como strings, o si necesitas un campo 'pagaCon' (paidAmount) en la raíz
-/*
-pedidoAppSchema.pre('save', function(next) {
-    if (this.paymentMethod === 'efectivo' && this.cashPaymentDetails) {
-        // Ejemplo de cómo podrías sacar 'paidAmount' al campo 'pagaCon' si existiera en la raíz
-        // this.pagaCon = this.cashPaymentDetails.paidAmount;
-        // Si necesitas ajustar el estado inicial basado en otras condiciones
-    }
-    next();
-});
-*/
 
 const PedidoApp = mongoose.model("PedidoApp", pedidoAppSchema);
 export default PedidoApp;
