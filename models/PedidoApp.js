@@ -84,6 +84,11 @@ const AppDeliveryAddressSchema = mongoose.Schema({
         trim: true,
         required: true,
     },
+    reference:{
+        type: String,
+        trim: true,
+        default: "",
+    }
 }, { _id: false });
 
 // Sub-esquema para los detalles de la tienda (MODIFICADO)
@@ -101,7 +106,7 @@ const pedidoAppSchema = mongoose.Schema(
         // Campos que vienen directamente del JSON de Flutter
         userId: { // ID del usuario que realiza el pedido (debería venir del token de autenticación)
             type: mongoose.Schema.Types.ObjectId, // Asumiendo que tu ID de usuario es un ObjectId
-            ref: "Usuario", // O el nombre de tu modelo de usuario (Cliente, User, etc.)
+            ref: "Cliente", // O el nombre de tu modelo de usuario (Cliente, User, etc.)
             required: true,
         },
         deliveryAddress: { // Usamos el sub-esquema para la dirección (MODIFICADO)
