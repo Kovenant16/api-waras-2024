@@ -12,6 +12,7 @@ const crearPedidoApp = async (req, res) => {
 
         // Desestructurar el cuerpo de la solicitud (JSON de Flutter)
         const {
+            userId,
             deliveryAddress,
             subtotal,
             deliveryCost,
