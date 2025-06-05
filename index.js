@@ -22,22 +22,59 @@ import http from 'http';
 import pedidos from './sockets/pedidos.js';
 import { Server as WebsocketServer } from 'socket.io';
 
+// --- NUEVAS IMPORTACIONES PARA FIREBASE ADMIN ---
+import admin from 'firebase-admin';
+import path from 'path'; // Para manejar rutas de archivos
+import fs from 'fs'; // Para leer el archivo JSON de la clave de servicio
+import { fileURLToPath } from 'url'; // Para __dirname en módulos ES6
+
+// Cargar variables de entorno
+dotenv.config();
+
+// Para usar __dirname con módulos ES6 (necesario si estás en type: "module" en package.json)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+
+// --- Configuración de Cloudinary (mantener) ---
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET
-  });
+});
 
-dotenv.config();
+// --- INICIALIZACIÓN DE FIREBASE ADMIN SDK ---
+// Carga la clave de servicio de Firebase desde el archivo JSON
+// Asegúrate de que la ruta sea correcta y que el archivo esté seguro (ej. en .gitignore)
+try {
+    // La ruta relativa al archivo JSON de tu clave de servicio
+    // Por ejemplo: si guardaste el archivo en una carpeta 'config' en la raíz: './config/serviceAccountKey.json'
+    const serviceAccountPath = path.resolve(__dirname, process.env.FIREBASE_SERVICE_ACCOUNT_KEY_PATH || './config/serviceAccountKey.json');
+    
+    // Leer el archivo JSON de la clave de servicio
+    const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+
+    admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+    });
+    console.log('Firebase Admin SDK inicializado correctamente.');
+} catch (error) {
+    console.error('Error al inicializar Firebase Admin SDK:', error);
+    // Es crítico para las notificaciones, así que puedes salir del proceso si falla
+    process.exit(1); 
+}
+// --- FIN DE LA INICIALIZACIÓN DE FIREBASE ADMIN SDK ---
+
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 
+// --- Tus rutas existentes (mantener) ---
 app.use("/api/usuarios", usuarioRoutes);
 app.use("/api/pedidos", pedidoRoutes);
 app.use("/api/locales", localRoutes);
-app.use("/api/clientes", clienteRoutes);
+app.use("/api/clientes", clienteRoutes); // Aquí es donde probablemente ya tienes tus rutas de cliente
 app.use("/api/tienda", productoRoutes);
 app.use("/api/categoria", categoriaRoutes);
 app.use("/api/ordenes", ordenesClienteRoutes);
@@ -47,7 +84,7 @@ app.use('/api/cloudinary',cloudinaryRoutes);
 app.use('/api/envioPaquete', envioPaqueteRoutes);
 app.use('/api/appPedidos', appPedidoRoutes);
 
-const PORT = process.env.PORT || 4000; // Lee la variable de entorno PORT o usa 4000 si no está definidaaa
+const PORT = process.env.PORT || 4000;
 
 const iniciarServidores = (httpServer) => {
     httpServer.listen(PORT, () => {
@@ -58,7 +95,6 @@ const iniciarServidores = (httpServer) => {
         pingTimeout: 60000,
         cors: {
             origin: '*'
-            // origin: ['https://admin.warasdelivery.com', 'https://moto.warasdelivery.com', "http://localhost:5173", "http://192.168.100.5:19000", "http://192.168.100.24:3000", "http://192.168.100.224:5173", "http://localhost:3000", "https://socio.warasdelivery.com", "https://192.168.1.49:8081"]
         },
     });
     pedidos(io);
@@ -71,7 +107,6 @@ const iniciarApp = async () => {
         if (connectedSock) {
             console.log('WhatsApp conectado y listo.');
             const server = http.createServer(app);
-            // Manejar errores de cors antes de iniciar el servidor de socket.io
             server.on('error', (error) => {
                 console.error('Error en el servidor:', error);
                 process.exit(1);
@@ -82,6 +117,7 @@ const iniciarApp = async () => {
         }
     } catch (error) {
         console.error('Error general durante la inicialización:', error);
+        process.exit(1); // Añadir salida en caso de error general de inicialización
     }
 };
 

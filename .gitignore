@@ -1,0 +1,11 @@
+# .gitignore
+
+node_modules/
+.env
+
+# Clave de cuenta de servicio de Firebase (si está en la raíz del proyecto)
+waras-app-delivery-flutter-firebase-adminsdk-fbsvc-21495591b2.json
+
+# --- Otras cosas que ignoras ---
+# Si tu .env está en la raíz, asegúrate de que no tenga un / inicial si no quieres ignorar otros directorios .env
+# ejemplo: /.env (ignora .env en la raíz)

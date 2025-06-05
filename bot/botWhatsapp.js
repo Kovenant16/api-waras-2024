@@ -181,7 +181,7 @@ export async function enviarMensajeAsignacion(numero, mensaje) {
 }
 
 export async function enviarCodigoVerificacionWhatsApp(telefonoConCodigo, codigo) {
-    const mensaje = `Tu código de verificación para Waras Delivery es: *${codigo}*`;
+    const mensaje = `*${codigo}* es tu código de verificación Waras Delivery. Por favor, no compartas este código con nadie.`;
     // Formatear el número de teléfono eliminando el '+' y el código de país (si es necesario)
     let telefonoParaWhatsApp = telefonoConCodigo;
     if (telefonoConCodigo.startsWith('+')) {

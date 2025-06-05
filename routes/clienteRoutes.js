@@ -21,6 +21,14 @@ router.post("/enviar-codigo", enviarCodigoVerificacion); // Usa la función del 
 // Ruta para editar un cliente
 router.put('/:id', editarCliente);
 
+// Ruta para registrar/actualizar FCM Token para un cliente
+router.post('/:clienteId/fcm-token', /* protect, */ registerOrUpdateFcmToken);
+
+// Ruta para eliminar FCM Token de un cliente
+router.post('/:clienteId/fcm-token/remove', /* protect, */ removeFcmToken);
+
+
+
 router.get('/obtenerCliente/:id', obtenerClientePorId);
 
 

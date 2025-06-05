@@ -1,0 +1,109 @@
+// src/services/notificationService.js
+
+import admin from 'firebase-admin';
+import Cliente from '../models/Cliente.js'; // Ajusta la ruta a tu modelo Cliente
+import mongoose from 'mongoose'; // Necesario para el .session si lo usas
+
+/**
+ * Envía una notificación push a un cliente específico y limpia los tokens inválidos.
+ * @param {string} clienteId - El ID del cliente al que se enviará la notificación.
+ * @param {string} title - El título de la notificación.
+ * @param {string} body - El cuerpo del mensaje de la notificación.
+ * @param {object} data - (Opcional) Datos personalizados para enviar con la notificación.
+ * @param {object} options - (Opcional) Opciones adicionales para el mensaje FCM (ej. priority, timeToLive).
+ */
+export const sendPushNotificationToClient = async (clienteId, title, body, data = {}, options = {}) => {
+    try {
+        const cliente = await Cliente.findById(clienteId);
+
+        if (!cliente) {
+            console.warn(`[Notification Service] Cliente con ID ${clienteId} no encontrado. No se enviará notificación.`);
+            return;
+        }
+
+        if (!cliente.fcmTokens || cliente.fcmTokens.length === 0) {
+            console.log(`[Notification Service] Cliente ${clienteId} no tiene tokens FCM registrados.`);
+            return;
+        }
+
+        const tokensToSend = cliente.fcmTokens.map(t => t.token);
+
+        const message = {
+            notification: {
+                title: title,
+                body: body,
+            },
+            data: {
+                ...data,
+                clienteId: clienteId.toString(), // Asegúrate de que el clienteId siempre vaya en los datos
+            },
+            tokens: tokensToSend,
+            ...options // Permitir opciones adicionales como priority, timeToLive
+        };
+
+        const response = await admin.messaging().sendEachForMulticast(message); // sendEachForMulticast es ideal para muchos tokens
+
+        console.log(`[Notification Service] Notificación FCM enviada a cliente ${clienteId}. Éxitos: ${response.successCount}, Fallos: ${response.failureCount}`);
+
+        // --- Lógica CLAVE para la limpieza pasiva de tokens ---
+        if (response.failureCount > 0) {
+            const tokensToRemove = [];
+            response.responses.forEach((resp, idx) => {
+                if (!resp.success) {
+                    const failedToken = tokensToSend[idx];
+                    // Errores que indican que el token ya no es válido
+                    if (resp.error && (
+                        resp.error.code === 'messaging/invalid-registration-token' ||
+                        resp.error.code === 'messaging/registration-token-not-registered' ||
+                        resp.error.code === 'messaging/unregistered' // Otro error común que indica invalidez
+                    )) {
+                        tokensToRemove.push(failedToken);
+                        console.log(`[Notification Service] Token inválido detectado para cliente ${clienteId}: ${failedToken}. Error: ${resp.error.message}`);
+                    } else {
+                        console.warn(`[Notification Service] Error desconocido al enviar a token ${failedToken}: ${resp.error?.message || 'Sin mensaje de error'}`);
+                    }
+                }
+            });
+
+            if (tokensToRemove.length > 0) {
+                // Actualizar el documento del cliente en la DB para eliminar los tokens inválidos
+                cliente.fcmTokens = cliente.fcmTokens.filter(t => !tokensToRemove.includes(t.token));
+                await cliente.save();
+                console.log(`[Notification Service] Eliminados ${tokensToRemove.length} tokens inválidos para cliente ${clienteId}.`);
+            }
+        }
+
+        return { success: response.successCount, failure: response.failureCount };
+
+    } catch (error) {
+        console.error(`[Notification Service] Error al enviar notificación FCM a cliente ${clienteId}:`, error);
+        throw new Error('Error al enviar notificación push.'); // Relanzar para que el llamador pueda manejarlo
+    }
+};
+
+/**
+ * Envía una notificación a un tópico FCM.
+ * @param {string} topic - El nombre del tópico.
+ * @param {string} title - El título de la notificación.
+ * @param {string} body - El cuerpo del mensaje.
+ * @param {object} data - Datos personalizados.
+ */
+export const sendNotificationToTopic = async (topic, title, body, data = {}) => {
+    const message = {
+        notification: {
+            title: title,
+            body: body,
+        },
+        data: data,
+        topic: topic,
+    };
+
+    try {
+        const response = await admin.messaging().send(message);
+        console.log(`[Notification Service] Notificación enviada a tópico "${topic}":`, response);
+        return response;
+    } catch (error) {
+        console.error(`[Notification Service] Error al enviar notificación a tópico "${topic}":`, error);
+        throw new Error('Error al enviar notificación a tópico.');
+    }
+};
