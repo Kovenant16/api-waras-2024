@@ -1,3 +1,4 @@
+// index.js
 import express from 'express';
 import cors from 'cors';
 import dotenv from "dotenv";
@@ -25,16 +26,18 @@ import { Server as WebsocketServer } from 'socket.io';
 
 // --- NUEVAS IMPORTACIONES PARA FIREBASE ADMIN ---
 import admin from 'firebase-admin';
-import path from 'path'; // Para manejar rutas de archivos
-import fs from 'fs'; // Para leer el archivo JSON de la clave de servicio
-import { fileURLToPath } from 'url'; // Para __dirname en módulos ES6
+// Eliminamos path, fs y fileURLToPath ya que no leeremos un archivo localmente en Render
+// import path from 'path';
+// import fs from 'fs';
+// import { fileURLToPath } from 'url';
+
 
 // Cargar variables de entorno
 dotenv.config();
 
-// Para usar __dirname con módulos ES6 (necesario si estás en type: "module" en package.json)
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Ya no necesitamos __filename y __dirname para leer el archivo JSON de Firebase Admin SDK
+// const __filename = fileURLToPath(import.meta.url);
+// const __dirname = path.dirname(__filename);
 
 
 // --- Configuración de Cloudinary (mantener) ---
@@ -45,24 +48,55 @@ cloudinary.config({
 });
 
 // --- INICIALIZACIÓN DE FIREBASE ADMIN SDK ---
-// Carga la clave de servicio de Firebase desde el archivo JSON
-// Asegúrate de que la ruta sea correcta y que el archivo esté seguro (ej. en .gitignore)
-try {
-    // La ruta relativa al archivo JSON de tu clave de servicio
-    // Por ejemplo: si guardaste el archivo en una carpeta 'config' en la raíz: './config/serviceAccountKey.json'
-    const serviceAccountPath = path.resolve(__dirname, process.env.FIREBASE_SERVICE_ACCOUNT_KEY_PATH || './config/serviceAccountKey.json');
-    
-    // Leer el archivo JSON de la clave de servicio
-    const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+// Carga la clave de servicio de Firebase desde la variable de entorno
+if (process.env.FIREBASE_ADMIN_SDK_CONFIG) {
+    try {
+        // Parsea el JSON que viene de la variable de entorno
+        const serviceAccount = JSON.parse(process.env.FIREBASE_ADMIN_SDK_CONFIG);
 
-    admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-    });
-    console.log('Firebase Admin SDK inicializado correctamente.');
-} catch (error) {
-    console.error('Error al inicializar Firebase Admin SDK:', error);
-    // Es crítico para las notificaciones, así que puedes salir del proceso si falla
-    process.exit(1); 
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount)
+        });
+        console.log('Firebase Admin SDK inicializado correctamente desde variable de entorno.');
+    } catch (error) {
+        console.error('Error al inicializar Firebase Admin SDK desde variable de entorno:', error);
+        // Si el JSON está mal, es un error crítico para las notificaciones
+        process.exit(1); 
+    }
+} else {
+    // Si la variable de entorno no está configurada, esto podría ser en desarrollo local
+    // o un error en producción.
+    console.warn('Advertencia: FIREBASE_ADMIN_SDK_CONFIG no está configurada.');
+    // Si estás en producción y esto ocurre, es un problema grave.
+    // Podrías inicializar desde un archivo local SOLO para desarrollo.
+    // Por ejemplo:
+    if (process.env.NODE_ENV !== 'production') {
+        try {
+            // Asegúrate de tener el archivo serviceAccountKey.json en ./config/
+            // y que la ruta sea correcta si lo usas localmente.
+            const __filename = fileURLToPath(import.meta.url);
+            const __dirname = path.dirname(__filename);
+            const localServiceAccountPath = path.resolve(__dirname, './config/waras-app-delivery-flutter-firebase-adminsdk-fbsvc-21495591b2.json');
+            
+            // Verifica si el archivo existe localmente antes de intentar leerlo
+            if (fs.existsSync(localServiceAccountPath)) {
+                const serviceAccount = JSON.parse(fs.readFileSync(localServiceAccountPath, 'utf8'));
+                admin.initializeApp({
+                    credential: admin.credential.cert(serviceAccount)
+                });
+                console.log('Firebase Admin SDK inicializado localmente desde archivo.');
+            } else {
+                console.error('Error: Archivo de clave de servicio local no encontrado en desarrollo.');
+                // No salir en desarrollo, pero notificar.
+            }
+        } catch (localError) {
+            console.error('Error al inicializar Firebase Admin SDK localmente desde archivo:', localError);
+        }
+    } else {
+        // En producción, si la variable de entorno no está, es un error fatal.
+        console.error('Error FATAL: FIREBASE_ADMIN_SDK_CONFIG no está configurada en producción. Saliendo del proceso.');
+        process.exit(1);
+    }
 }
 // --- FIN DE LA INICIALIZACIÓN DE FIREBASE ADMIN SDK ---
 
