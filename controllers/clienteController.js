@@ -96,7 +96,7 @@ const verificarCodigoCliente = async (req, res) => {
     }
 };
 
-export const registerOrUpdateFcmToken = async (req, res) => {
+const registerOrUpdateFcmToken = async (req, res) => {
     const { clienteId } = req.params;
     const { fcmToken, deviceId, platform } = req.body;
 
@@ -158,7 +158,7 @@ export const registerOrUpdateFcmToken = async (req, res) => {
     }
 };
 
-export const removeFcmToken = async (req, res) => {
+const removeFcmToken = async (req, res) => {
     const { clienteId } = req.params;
     const { fcmToken } = req.body; // Se espera el token a eliminar en el body
 

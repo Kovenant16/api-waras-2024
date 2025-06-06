@@ -15,6 +15,7 @@ import ventaRoutes from "./routes/ventaRoutes.js";
 import cloudinaryRoutes from './routes/cloudinaryRoutes.js';
 import envioPaqueteRoutes from './routes/envioPaqueteRoutes.js';
 import appPedidoRoutes from './routes/appPedidoRoutes.js';
+import notificationRoutes from './routes/notificationRoutes.js';
 
 import { startSock } from './bot/botWhatsapp.js';
 
@@ -83,6 +84,7 @@ app.use("/api/ventas", ventaRoutes);
 app.use('/api/cloudinary',cloudinaryRoutes);
 app.use('/api/envioPaquete', envioPaqueteRoutes);
 app.use('/api/appPedidos', appPedidoRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 const PORT = process.env.PORT || 4000;
 

@@ -31,6 +31,8 @@ const AppSelectedOptionDetailSchema = mongoose.Schema({
     },
 }, { _id: false }); // _id: false para que Mongoose no cree un _id para cada subdocumento de opción
 
+
+
 // Sub-esquema para los ítems del pedido (MODIFICADO)
 const AppOrderItemSchema = mongoose.Schema({
     productId: {
@@ -59,11 +61,9 @@ const AppOrderItemSchema = mongoose.Schema({
 const AppCashPaymentDetailsSchema = mongoose.Schema({
     paidAmount: {
         type: Number,
-        required: true,
     },
     change: {
         type: Number,
-        required: true,
     },
 }, { _id: false });
 
@@ -112,6 +112,12 @@ const pedidoAppSchema = mongoose.Schema(
         deliveryAddress: { // Usamos el sub-esquema para la dirección (MODIFICADO)
             type: AppDeliveryAddressSchema,
             required: true,
+        },
+         // Nuevo campo para el número de pedido secuencial
+        numeroPedido: {
+            type: Number,
+            unique: true, // Asegura que no haya dos pedidos con el mismo número
+            sparse: true // Permite que algunos documentos no tengan este campo (si es que había pedidos antes)
         },
         subtotal: {
             type: Number,

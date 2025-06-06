@@ -6,8 +6,10 @@ import {
     obtenerPedidoAppPorId,
     obtenerPedidosEnTransito,
     obtenerPedidosPorUsuario,
-    obtenerPedidosPorTienda
+    obtenerPedidosPorTienda,
+    obtenerPedidosSinDriver
 } from '../controllers/appPedidoController.js';
+import checkAuth from '../middleware/checkAuth.js'; // Asegúrate de tener un middleware de autenticación si es necesario
 
 // Si tienes un middleware de autenticación, impórtalo aquí.
 // Por ejemplo:
@@ -29,7 +31,7 @@ router.post('/', crearPedidoApp); // Versión sin protección (para desarrollo/p
 // GET /api/appPedidos/:id
 // Esta ruta podría ser accesible por el usuario que hizo el pedido, un administrador o la tienda.
 // Se recomienda protegerla y validar que el usuario tenga permisos para ver ese pedido.
-router.get('/:id', obtenerPedidoAppPorId);
+router.get('/obtenerPedidoPorId/:id', obtenerPedidoAppPorId);
 
 // Ruta para obtener todos los pedidos que están en estado de "tránsito"
 // GET /api/appPedidos/transito
@@ -51,6 +53,8 @@ router.get('/user', obtenerPedidosPorUsuario);
 // puedan acceder a los pedidos. El :storeId se pasa como parámetro en la URL.
 // router.get('/store/:storeId', protect, obtenerPedidosPorTienda); // Ejemplo con protección
 router.get('/store/:storeId', obtenerPedidosPorTienda);
+
+router.get('/pedidosSinDriver',checkAuth, obtenerPedidosSinDriver);
 
 
 export default router;

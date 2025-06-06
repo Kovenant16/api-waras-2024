@@ -19,7 +19,7 @@ export async function startSock() {
         const { state, saveCreds } = await useMultiFileAuthState('/data');
 
         sock = makeWASocket({
-            logger: P({ level: 'silent' }),
+            logger: P({ level: 'error' }),
             printQRInTerminal: true,
             auth: state,
         });

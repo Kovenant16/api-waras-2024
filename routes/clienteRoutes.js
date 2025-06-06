@@ -4,8 +4,10 @@ import {
     verificarCodigoCliente,
     enviarCodigoVerificacion, // Importa la nueva función desde el servicio
     editarCliente,
-    obtenerClientePorId
+    obtenerClientePorId,
 } from '../services/clienteService.js';
+
+import { registerOrUpdateFcmToken, removeFcmToken } from '../controllers/clienteController.js';
 
 const router = express.Router();
 
