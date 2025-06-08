@@ -1,4 +1,6 @@
 import Pedido from "../models/Pedido.js";
+import PedidoApp from "../models/PedidoApp.js";
+import EnvioPaquete from "../models/EnvioPaquete.js";
 import Usuario from "../models/Usuario.js";
 import Local from "../models/Local.js";
 import Cliente from "../models/Cliente.js";
@@ -228,23 +230,19 @@ const obtenerPedido = async (req, res) => {
     const pedido = await Pedido.findById(id)
         .populate({
             path: "driver",
-            populate: {
-                path: "organizacion",
-                select: "-direccion -gps -telefonoUno -colaboradores -habilitado -createdAt -updatedAt -__v",
-            },
-            select: "-password -confirmado -habilitado -token -createdAt -updatedAt -__v",
+            select: "nombre email telefono rol",
         })
         .populate({
             path: "generadoPor",
-            select: "-password -confirmado -rol -habilitado -token -createdAt -updatedAt -__v",
+            select: "nombre telefono",
             populate: {
                 path: "organizacion",
-                select: "-direccion -gps -telefonoUno -colaboradores -habilitado -createdAt -updatedAt -__v",
+                select: "nombre",
             },
         })
         .populate({
             path: "local",
-            select: "-createdAt -habilitado -updatedAt",
+            select: "nombre direccion gps telefono idTelegram",
         })
         .populate({
             path: "pedido.producto",
@@ -1238,73 +1236,7 @@ const calcularPrecioDelivery = async (req, res) => {
     }
 };
 
-// function calculateDistanceAndPrice(start, end, polygonPoints) {
-//     const distanceInMeters = calculateHaversineDistance(
-//         start.lat,
-//         start.lng,
-//         end.lat,
-//         end.lng
-//     );
 
-//     const isInsidePolygon = pointInPolygon(end, polygonPoints);
-
-//     let distanceMultiplier = isInsidePolygon ? 1 : 2.1;
-
-//     const distanceWithMultiplier = distanceInMeters * distanceMultiplier;
-
-//     const price = Math.ceil((distanceWithMultiplier + 4.5) * 2) / 2;
-//     const priceRedondeado = Math.ceil(price)
-
-//     return {
-//         distance: distanceWithMultiplier,
-//         price: priceRedondeado
-
-//     };
-// }
-
-// function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
-//     const R = 6371; // km
-
-//     const dLat = deg2rad(lat2 - lat1);
-//     const dLon = deg2rad(lon2 - lon1);
-
-//     const a =
-//         Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-//         Math.cos(deg2rad(lat1)) *
-//         Math.cos(deg2rad(lat2)) *
-//         Math.sin(dLon / 2) *
-//         Math.sin(dLon / 2);
-
-//     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-//     return R * c;
-// }
-
-// function deg2rad(deg) {
-//     return deg * (Math.PI / 180);
-// }
-
-// function pointInPolygon(point, polygonPoints) {
-//     let inside = false;
-//     const x = point.lng, y = point.lat;
-
-//     for (
-//         let i = 0, j = polygonPoints.length - 1;
-//         i < polygonPoints.length;
-//         j = i++
-//     ) {
-//         const xi = polygonPoints[i].lng, yi = polygonPoints[i].lat;
-//         const xj = polygonPoints[j].lng, yj = polygonPoints[j].lat;
-
-//         const intersect =
-//             yi > y !== yj > y &&
-//             x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
-
-//         if (intersect) inside = !inside;
-//     }
-
-//     return inside;
-// }
 
 const obtenerLocalPorTelefono = async (req, res) => {
     let { telefono } = req.body;
@@ -1506,6 +1438,168 @@ const calcularPrecioDeliveryDos = async (req, res) => {
     } catch (error) {
         console.log(error);
         res.status(500).json({ msg: "Error al calcular el precio de delivery" });
+    }
+};
+
+export const obtenerTodosLosPedidosSinDriver = async (req, res) => {
+    try {
+        let allOrders = [];
+
+        // --- 1. Obtener Pedidos Express (del modelo Pedido) ---
+        // Basado en tu sintaxis proporcionada y los campos que seleccionas
+        const expressOrders = await Pedido.find({
+            estadoPedido: { $in: ["pendiente", "recogido", "sin asignar", "en local"] },
+            driver: { $exists: false } // Condición para que no tenga driver asignado
+        })
+            .populate({ path: "generadoPor", select: "nombre telefono" })
+            .populate({ path: "local", select: "nombre gps" })
+            .select("delivery direccion fecha hora local gps telefono detallePedido medioDePago estadoPedido createdAt") // Asegúrate de incluir createdAt para ordenar y _id
+            .sort({ fecha: -1, hora: -1 }) // Ordena por fecha y luego por hora
+            .limit(20); // Limita a 20 resultados
+
+        // Mapear los pedidos Express a un formato unificado
+        const mappedExpressOrders = expressOrders.map(order => {
+            const clientName = order.generadoPor?.nombre || order.telefono || 'N/A';
+            const clientPhone = order.generadoPor?.telefono || order.telefono || 'N/A';
+            const deliveryCost = parseFloat(order.delivery || '0');
+
+            const deliveryAddressDetails = {
+                fullAddress: order.direccion,
+                gps: order.gps,
+                name: order.detallePedido || 'Dirección de entrega',
+                reference: order.detallePedido
+            };
+
+            const storeDetails = {
+                storeId: order.local?._id || null,
+                nombre: order.local?.nombre || 'Local desconocido',
+                gps: order.local?.gps || null,
+            };
+
+            return {
+                id: order._id.toString(), // Convertir ObjectId a String
+                tipoPedido: 'express',
+                estadoPedido: order.estadoPedido,
+                clientName: clientName,
+                clientPhone: clientPhone,
+                deliveryCost: deliveryCost,
+                medioDePago: order.medioDePago,
+                detail: order.detallePedido,
+                orderItems: [], // Los pedidos Express no suelen tener 'items' estructurados
+                orderDate: new Date(`${order.fecha}T${order.hora}:00.000Z`).toISOString(),
+                deliveryAddressDetails: deliveryAddressDetails,
+                storeDetails: storeDetails,
+                createdAt: order.createdAt?.toISOString(), // Para ordenar globalmente si es necesario
+            };
+        });
+        allOrders = [...allOrders, ...mappedExpressOrders];
+
+
+        // --- 2. Obtener Pedidos de App (del modelo PedidoApp) ---
+        const appOrders = await PedidoApp.find({
+            driver: null,
+            estadoPedido: { $in: ['pendiente', 'sin asignar', 'aceptado'] }
+        })
+            .populate('userId', 'nombre email telefono')
+            .populate({
+                path: 'storeDetails.storeId',
+                select: 'nombre gps'
+            })
+            .select("deliveryCost totalAmount notes orderItems orderDate deliveryAddress storeDetails paymentMethod estadoPedido createdAt") // Incluye createdAt
+            .sort({ createdAt: 1 }) // Los más antiguos primero
+            .limit(20);
+
+        const mappedAppOrders = appOrders.map(order => ({
+            id: order._id.toString(), // Convertir ObjectId a String
+            tipoPedido: 'app',
+            estadoPedido: order.estadoPedido,
+            clientName: order.userId?.nombre || 'N/A',
+            clientPhone: order.userId?.telefono || 'N/A',
+            deliveryCost: order.deliveryCost,
+            medioDePago: order.paymentMethod,
+            totalAmount: order.totalAmount,
+            notes: order.notes,
+            orderItems: order.orderItems.map(item => ({
+                productId: item.productId.toString(), // Asegúrate de convertir a string
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                totalItemPrice: item.totalItemPrice,
+                selectedOptions: item.selectedOptions,
+            })),
+            orderDate: order.orderDate.toISOString(),
+            deliveryAddressDetails: {
+                name: order.deliveryAddress.name,
+                fullAddress: order.deliveryAddress.fullAddress,
+                gps: order.deliveryAddress.gps,
+                reference: order.deliveryAddress.reference,
+            },
+            storeDetails: {
+                storeId: order.storeDetails.storeId?._id?.toString() || null,
+                nombre: order.storeDetails.storeId?.nombre || 'Tienda Desconocida',
+                gps: order.storeDetails.storeId?.gps || null,
+            },
+            createdAt: order.createdAt?.toISOString(),
+        }));
+        allOrders = [...allOrders, ...mappedAppOrders];
+
+
+        // --- 3. Obtener Pedidos de Paquetería (del modelo EnvioPaquete) ---
+        const packageOrders = await EnvioPaquete.find({ driverAsignado: null })
+            .populate('cliente', 'nombre telefono email')
+            .select("costoEnvio distanciaEnvioKm medioDePago quienPagaEnvio horaRecojoEstimada notasPedido recojo entrega fechaCreacion estadoPedido createdAt") // Incluye createdAt
+            .sort({ fechaCreacion: -1 }) // Ordena por fecha de creación
+            .limit(20);
+
+        const mappedPackageOrders = packageOrders.map(order => ({
+            id: order._id.toString(), // Convertir ObjectId a String
+            tipoPedido: 'paqueteria',
+            estadoPedido: order.estadoPedido,
+            clientName: order.cliente?.nombre || 'N/A',
+            clientPhone: order.cliente?.telefono || 'N/A',
+            deliveryCost: order.costoEnvio,
+            distanceInKm: order.distanciaEnvioKm,
+            medioDePago: order.medioDePago,
+            recojoDetails: {
+                direccion: order.recojo.direccion,
+                referencia: order.recojo.referencia,
+                telefonoContacto: order.recojo.telefonoContacto,
+                detallesAdicionales: order.recojo.detallesAdicionales,
+                gps: `${order.recojo.gps.latitude},${order.recojo.gps.longitude}`,
+            },
+            deliveryAddressDetails: {
+                fullAddress: order.entrega.direccion,
+                gps: `${order.entrega.gps.latitude},${order.entrega.gps.longitude}`,
+                name: order.entrega.referencia,
+                reference: order.entrega.referencia,
+            },
+            notes: order.notasPedido,
+            orderDate: order.fechaCreacion.toISOString(),
+            horaRecojoEstimada: order.horaRecojoEstimada,
+            createdAt: order.createdAt?.toISOString(),
+        }));
+        allOrders = [...allOrders, ...mappedPackageOrders];
+
+        // --- Ordenamiento Final y Límite Global ---
+        // Ordena todos los pedidos combinados por su fecha de creación (createdAt) de forma descendente.
+        // Esto asegura que los pedidos más recientes de cualquier tipo aparezcan primero.
+        allOrders.sort((a, b) => {
+            const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0); // Usa una fecha muy antigua si createdAt no existe
+            const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+            return dateB.getTime() - dateA.getTime();
+        });
+
+        // Aplica un límite global si deseas un número máximo de pedidos combinados
+        const limitedOrders = allOrders.slice(0, 20); // Limita a 20 pedidos combinados
+
+        if (limitedOrders.length === 0) {
+            return res.status(200).json({ msg: "No hay pedidos sin driver disponibles en este momento.", pedidos: [] });
+        }
+
+        res.status(200).json({ msg: "Pedidos sin driver encontrados.", pedidos: limitedOrders });
+
+    } catch (error) {
+        console.error('Error al obtener todos los pedidos sin driver:', error);
+        res.status(500).json({ msg: 'Error interno del servidor al obtener pedidos.' });
     }
 };
 

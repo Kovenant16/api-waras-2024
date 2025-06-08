@@ -38,7 +38,8 @@ import {
     obtenerPedidoPorTelefono,
     calcularPrecioDelivery,
     obtenerLocalPorTelefono,
-    calcularPrecioDeliveryDos,    
+    calcularPrecioDeliveryDos,
+    obtenerTodosLosPedidosSinDriver,    
 } from "../controllers/pedidoController.js";
 import checkAuth from "../middleware/checkAuth.js";
 
@@ -78,6 +79,7 @@ router.delete("/eliminarPedidoSocio/:id", checkAuth,eliminarPedidoSocio)
 router.post("/calcularPrecioDelivery", calcularPrecioDelivery)
 router.post("/calcularPrecioDeliveryDos", calcularPrecioDeliveryDos)
 router.post("/obtenerLocalPorTelefono",obtenerLocalPorTelefono)
+router.get('/pedidosSinDriver', obtenerTodosLosPedidosSinDriver);
 router
     .route("/:id")
     .get(checkAuth, obtenerPedido)
