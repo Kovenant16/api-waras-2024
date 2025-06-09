@@ -1445,151 +1445,166 @@ export const obtenerTodosLosPedidosSinDriver = async (req, res) => {
     try {
         let allOrders = [];
 
-        // --- 1. Obtener Pedidos Express (del modelo Pedido) ---
-        // Basado en tu sintaxis proporcionada y los campos que seleccionas
+        // --- 1. Obtener Pedidos Express (Modelo Pedido) ---
         const expressOrders = await Pedido.find({
             estadoPedido: { $in: ["pendiente", "recogido", "sin asignar", "en local"] },
             driver: { $exists: false } // Condición para que no tenga driver asignado
         })
-            .populate({ path: "generadoPor", select: "nombre telefono" })
+            .populate({ path: "generadoPor", select: "nombre" }) // Solo necesitamos 'nombre' de generadoPor
             .populate({ path: "local", select: "nombre gps" })
-            .select("delivery direccion fecha hora local gps telefono detallePedido medioDePago estadoPedido createdAt") // Asegúrate de incluir createdAt para ordenar y _id
+            .select("cobrar comVenta porcentPago delivery direccion fecha hora local gps telefono detallePedido medioDePago estadoPedido createdAt generadoPor") // Incluye los nuevos campos
             .sort({ fecha: -1, hora: -1 }) // Ordena por fecha y luego por hora
             .limit(20); // Limita a 20 resultados
 
-        // Mapear los pedidos Express a un formato unificado
         const mappedExpressOrders = expressOrders.map(order => {
-            const clientName = order.generadoPor?.nombre || order.telefono || 'N/A';
-            const clientPhone = order.generadoPor?.telefono || order.telefono || 'N/A';
+            // clientName: los express vienen sin nombre (se usará generadoPor.nombre para quien creó el pedido)
+            // clientPhone: telefono
+            const clientPhone = order.telefono || 'N/A';
             const deliveryCost = parseFloat(order.delivery || '0');
+            const cobrar = parseFloat(order.cobrar || '0'); // Nuevo campo
+            const comVenta = parseFloat(order.comVenta || '0'); // Nuevo campo
+            const porcentPago = parseFloat(order.porcentPago || '0'); // Nuevo campo
+            const generadoPorNombre = order.generadoPor?.nombre || 'N/A'; // Nuevo campo para quien creó
 
-            const deliveryAddressDetails = {
-                fullAddress: order.direccion,
-                gps: order.gps,
-                name: order.detallePedido || 'Dirección de entrega',
-                reference: order.detallePedido
-            };
-
-            const storeDetails = {
-                storeId: order.local?._id || null,
-                nombre: order.local?.nombre || 'Local desconocido',
-                gps: order.local?.gps || null,
-            };
+            // orderDate de los campos fecha y hora
+            const orderDateISO = new Date(`${order.fecha}T${order.hora}:00.000Z`).toISOString();
 
             return {
-                id: order._id.toString(), // Convertir ObjectId a String
+                id: order._id.toString(),
                 tipoPedido: 'express',
                 estadoPedido: order.estadoPedido,
-                clientName: clientName,
+                clientName: 'Cliente Express', // Los express vienen sin nombre de cliente específico
                 clientPhone: clientPhone,
                 deliveryCost: deliveryCost,
                 medioDePago: order.medioDePago,
-                detail: order.detallePedido,
-                orderItems: [], // Los pedidos Express no suelen tener 'items' estructurados
-                orderDate: new Date(`${order.fecha}T${order.hora}:00.000Z`).toISOString(),
-                deliveryAddressDetails: deliveryAddressDetails,
-                storeDetails: storeDetails,
-                createdAt: order.createdAt?.toISOString(), // Para ordenar globalmente si es necesario
+                detail: order.detallePedido || '',
+                orderItems: [], // No traerá items
+                orderDate: orderDateISO,
+                deliveryAddressDetails: {
+                    fullAddress: order.direccion || '',
+                    gps: order.gps || '0,0',
+                    name: null, // No traerá nombre de dirección
+                    reference: null, // No traerá referencia
+                },
+                storeDetails: {
+                    storeId: order.local?._id?.toString() || null, // Asegúrate de convertir a string
+                    nombre: order.local?.nombre || 'Local desconocido',
+                    gps: order.local?.gps || null,
+                },
+                createdAt: order.createdAt?.toISOString() || new Date(0).toISOString(),
+                // Nuevos campos específicos de Express para el motorizado
+                cobrar: cobrar,
+                comVenta: comVenta,
+                porcentPago: porcentPago,
+                generadoPorName: generadoPorNombre, // Quien creó el pedido
             };
         });
         allOrders = [...allOrders, ...mappedExpressOrders];
 
 
-        // --- 2. Obtener Pedidos de App (del modelo PedidoApp) ---
+        // --- 2. Obtener Pedidos de App (Modelo PedidoApp) ---
         const appOrders = await PedidoApp.find({
             driver: null,
             estadoPedido: { $in: ['pendiente', 'sin asignar', 'aceptado'] }
         })
-            .populate('userId', 'nombre email telefono')
+            .populate('userId', 'nombre telefono') // Necesitamos nombre y telefono de userId
             .populate({
                 path: 'storeDetails.storeId',
-                select: 'nombre gps'
+                select: 'nombre gps' // Asegúrate de que 'storeId' en PedidoApp sea una referencia y no un subdocumento
             })
-            .select("deliveryCost totalAmount notes orderItems orderDate deliveryAddress storeDetails paymentMethod estadoPedido createdAt") // Incluye createdAt
-            .sort({ createdAt: 1 }) // Los más antiguos primero
+            .select("numeroPedido subTotal porcentPago deliveryCost totalAmount notes orderItems orderDate deliveryAddress storeDetails paymentMethod estadoPedido createdAt") // Incluye los nuevos campos
+            .sort({ createdAt: 1 })
             .limit(20);
 
         const mappedAppOrders = appOrders.map(order => ({
-            id: order._id.toString(), // Convertir ObjectId a String
+            id: order._id.toString(),
             tipoPedido: 'app',
             estadoPedido: order.estadoPedido,
             clientName: order.userId?.nombre || 'N/A',
             clientPhone: order.userId?.telefono || 'N/A',
-            deliveryCost: order.deliveryCost,
-            medioDePago: order.paymentMethod,
-            totalAmount: order.totalAmount,
-            notes: order.notes,
-            orderItems: order.orderItems.map(item => ({
-                productId: item.productId.toString(), // Asegúrate de convertir a string
-                quantity: item.quantity,
-                unitPrice: item.unitPrice,
-                totalItemPrice: item.totalItemPrice,
-                selectedOptions: item.selectedOptions,
-            })),
-            orderDate: order.orderDate.toISOString(),
+            deliveryCost: order.deliveryCost || 0,
+            medioDePago: order.paymentMethod || 'efectivo', // `paymentMethod` mapea a `medioDePago`
+            totalAmount: order.totalAmount || 0,
+            notes: order.notes || '',
+            orderItems: order.orderItems?.map(item => ({
+                productId: item.productId?.toString() || '', // Asegúrate de convertir a string
+                quantity: item.quantity || 0,
+                unitPrice: item.unitPrice || 0,
+                totalItemPrice: item.totalItemPrice || 0,
+                selectedOptions: item.selectedOptions || [], // Asegúrate de que esto sea un array, incluso si está vacío
+            })) || [],
+            orderDate: order.orderDate?.toISOString() || new Date(0).toISOString(),
             deliveryAddressDetails: {
-                name: order.deliveryAddress.name,
-                fullAddress: order.deliveryAddress.fullAddress,
-                gps: order.deliveryAddress.gps,
-                reference: order.deliveryAddress.reference,
+                name: order.deliveryAddress?.nombreUbicacion || null,
+                fullAddress: order.deliveryAddress?.direccionCompleta || '',
+                gps: order.deliveryAddress?.gps || '0,0',
+                reference: order.deliveryAddress?.referencia || null,
             },
             storeDetails: {
-                storeId: order.storeDetails.storeId?._id?.toString() || null,
-                nombre: order.storeDetails.storeId?.nombre || 'Tienda Desconocida',
-                gps: order.storeDetails.storeId?.gps || null,
+                storeId: order.storeDetails?.storeId?._id?.toString() || null,
+                nombre: order.storeDetails?.storeId?.nombre || 'Tienda Desconocida',
+                gps: order.storeDetails?.storeId?.gps || null,
             },
-            createdAt: order.createdAt?.toISOString(),
+            createdAt: order.createdAt?.toISOString() || new Date(0).toISOString(),
+            // Nuevos campos específicos de App
+            numeroPedido: order.numeroPedido || null,
+            subTotal: order.subTotal || 0,
+            porcentPago: order.porcentPago || 0,
         }));
         allOrders = [...allOrders, ...mappedAppOrders];
 
 
-        // --- 3. Obtener Pedidos de Paquetería (del modelo EnvioPaquete) ---
+        // --- 3. Obtener Pedidos de Paquetería (Modelo EnvioPaquete) ---
         const packageOrders = await EnvioPaquete.find({ driverAsignado: null })
-            .populate('cliente', 'nombre telefono email')
-            .select("costoEnvio distanciaEnvioKm medioDePago quienPagaEnvio horaRecojoEstimada notasPedido recojo entrega fechaCreacion estadoPedido createdAt") // Incluye createdAt
-            .sort({ fechaCreacion: -1 }) // Ordena por fecha de creación
+            .populate('cliente', 'nombre telefono') // Necesitamos nombre y telefono del cliente
+            // .populate('generadoPor', 'nombre email telefono') // No se mencionó su uso para mapeo de cliente/teléfono
+            .select("costoEnvio distanciaEnvioKm medioDePago quienPagaEnvio horaRecojoEstimada notasPedido recojo entrega fechaCreacion estadoPedido createdAt") // Incluye recojo y entrega completos
+            .sort({ fechaCreacion: -1 })
             .limit(20);
 
         const mappedPackageOrders = packageOrders.map(order => ({
-            id: order._id.toString(), // Convertir ObjectId a String
+            id: order._id.toString(),
             tipoPedido: 'paqueteria',
             estadoPedido: order.estadoPedido,
             clientName: order.cliente?.nombre || 'N/A',
             clientPhone: order.cliente?.telefono || 'N/A',
-            deliveryCost: order.costoEnvio,
-            distanceInKm: order.distanciaEnvioKm,
-            medioDePago: order.medioDePago,
+            deliveryCost: order.costoEnvio || 0,
+            distanceInKm: order.distanciaEnvioKm || 0,
+            medioDePago: order.medioDePago || 'efectivo',
             recojoDetails: {
-                direccion: order.recojo.direccion,
-                referencia: order.recojo.referencia,
-                telefonoContacto: order.recojo.telefonoContacto,
-                detallesAdicionales: order.recojo.detallesAdicionales,
-                gps: `${order.recojo.gps.latitude},${order.recojo.gps.longitude}`,
+                direccion: order.recojo?.direccion || '',
+                referencia: order.recojo?.referencia || null,
+                telefonoContacto: order.recojo?.telefonoContacto || null,
+                detallesAdicionales: order.recojo?.detallesAdicionales || null, // **Añadido**
+                gps: (order.recojo?.gps?.latitude && order.recojo?.gps?.longitude)
+                    ? `${order.recojo.gps.latitude},${order.recojo.gps.longitude}`
+                    : '0,0',
             },
             deliveryAddressDetails: {
-                fullAddress: order.entrega.direccion,
-                gps: `${order.entrega.gps.latitude},${order.entrega.gps.longitude}`,
-                name: order.entrega.referencia,
-                reference: order.entrega.referencia,
+                fullAddress: order.entrega?.direccion || '',
+                gps: (order.entrega?.gps?.latitude && order.entrega?.gps?.longitude)
+                    ? `${order.entrega.gps.latitude},${order.entrega.gps.longitude}`
+                    : '0,0',
+                name: null, // No traera este campo
+                reference: order.entrega?.referencia || null,
+                telefonoContacto: order.entrega?.telefonoContacto || null, // **Añadido**
+                detallesAdicionales: order.entrega?.detallesAdicionales || null, // **Añadido**
             },
-            notes: order.notasPedido,
-            orderDate: order.fechaCreacion.toISOString(),
-            horaRecojoEstimada: order.horaRecojoEstimada,
-            createdAt: order.createdAt?.toISOString(),
+            notes: null, // No traerá según tu indicación explícita
+            orderDate: order.fechaCreacion?.toISOString() || new Date(0).toISOString(),
+            horaRecojoEstimada: order.horaRecojoEstimada || null,
+            createdAt: order.createdAt?.toISOString() || new Date(0).toISOString(),
         }));
         allOrders = [...allOrders, ...mappedPackageOrders];
 
         // --- Ordenamiento Final y Límite Global ---
-        // Ordena todos los pedidos combinados por su fecha de creación (createdAt) de forma descendente.
-        // Esto asegura que los pedidos más recientes de cualquier tipo aparezcan primero.
         allOrders.sort((a, b) => {
-            const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0); // Usa una fecha muy antigua si createdAt no existe
+            const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
             const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
             return dateB.getTime() - dateA.getTime();
         });
 
-        // Aplica un límite global si deseas un número máximo de pedidos combinados
-        const limitedOrders = allOrders.slice(0, 20); // Limita a 20 pedidos combinados
+        const limitedOrders = allOrders.slice(0, 20);
 
         if (limitedOrders.length === 0) {
             return res.status(200).json({ msg: "No hay pedidos sin driver disponibles en este momento.", pedidos: [] });

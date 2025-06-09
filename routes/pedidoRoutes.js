@@ -54,7 +54,7 @@ router.post('/obtenerClientes/',checkAuth, obtenerClientes);
 router.post('/asignarMotorizado/',checkAuth, asignarMotorizado);
 router.post('/nuevoPedidoSocio/',checkAuth, nuevoPedidoSocio);
 router.get("/ultimosVeintePedidos", checkAuth, obtenerUltimosVeintePedidos);
-router.get("/pedidosNoEntregados", checkAuth, obtenerPedidosNoEntregados);
+router.get("/pedidosNoEntregados", /*checkAuth,*/ obtenerPedidosNoEntregados);
 router.get("/pedidosNoEntregadosSinDriver", checkAuth, obtenerPedidosNoEntregadosSinDriver);
 router.get("/pedidosNoEntregados/:localId", checkAuth, obtenerPedidosNoEntregadosPorLocal);
 router.get("/pedidosMotorizado", checkAuth, obtenerPedidosAsignados);
