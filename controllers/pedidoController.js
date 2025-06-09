@@ -1456,6 +1456,9 @@ export const obtenerTodosLosPedidosSinDriver = async (req, res) => {
             .sort({ fecha: -1, hora: -1 }) // Ordena por fecha y luego por hora
             .limit(20); // Limita a 20 resultados
 
+            console.log(expressOrders.toString());
+            
+
         const mappedExpressOrders = expressOrders.map(order => {
             // clientName: los express vienen sin nombre (se usará generadoPor.nombre para quien creó el pedido)
             // clientPhone: telefono
@@ -1468,6 +1471,11 @@ export const obtenerTodosLosPedidosSinDriver = async (req, res) => {
 
             // orderDate de los campos fecha y hora
             const orderDateISO = new Date(`${order.fecha}T${order.hora}:00.000Z`).toISOString();
+            const storeDetails = { // Objeto anidado
+                storeId: order.local?.[0]?._id?.toString() || null, // Accede al primer elemento [0]
+                nombre: order.local?.[0]?.nombre || 'Local desconocido', // Accede al primer elemento [0]
+                gps: order.local?.[0]?.gps || null, // Accede al primer elemento [0]
+            };
 
             return {
                 id: order._id.toString(),
@@ -1486,11 +1494,7 @@ export const obtenerTodosLosPedidosSinDriver = async (req, res) => {
                     name: null, // No traerá nombre de dirección
                     reference: null, // No traerá referencia
                 },
-                storeDetails: {
-                    storeId: order.local?._id?.toString() || null, // Asegúrate de convertir a string
-                    nombre: order.local?.nombre || 'Local desconocido',
-                    gps: order.local?.gps || null,
-                },
+                storeDetails: storeDetails, // Objeto anidado con detalles de la tienda
                 createdAt: order.createdAt?.toISOString() || new Date(0).toISOString(),
                 // Nuevos campos específicos de Express para el motorizado
                 cobrar: cobrar,
