@@ -149,7 +149,11 @@ const envioPaqueteSchema = mongoose.Schema(
         cliente:{
             type: mongoose.Schema.Types.ObjectId,
             ref: "Cliente",
-        }
+        },
+        porcentPago: {
+            type: Number,
+            default: 0.8, // Por ejemplo, 80% para el driver
+        },
     },
     {
         timestamps: true,

@@ -1584,6 +1584,7 @@ export const obtenerTodosLosPedidosSinDriver = async (req, res) => {
             deliveryCost: order.costoEnvio || 0,
             distanceInKm: order.distanciaEnvioKm || 0,
             medioDePago: order.medioDePago || 'efectivo',
+            porcentPago: order.porcentPago || 0.8,
             recojoDetails: {
                 direccion: order.recojo?.direccion || '',
                 referencia: order.recojo?.referencia || null,
