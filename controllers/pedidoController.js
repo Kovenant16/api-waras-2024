@@ -1441,66 +1441,62 @@ const calcularPrecioDeliveryDos = async (req, res) => {
     }
 };
 
+
+
 export const obtenerTodosLosPedidosSinDriver = async (req, res) => {
     try {
         let allOrders = [];
 
         // --- 1. Obtener Pedidos Express (Modelo Pedido) ---
+        // Se asume que 'Pedido' es tu modelo para pedidos Express.
         const expressOrders = await Pedido.find({
-            estadoPedido: { $in: ["pendiente", "recogido", "sin asignar", "en local"] },
+            estadoPedido: { $in: ["pendiente", "recogido", "sin asignar", "en local"] }, // Ajusta si estos estados cambian en tu modelo Pedido
             driver: { $exists: false } // Condición para que no tenga driver asignado
         })
-            .populate({ path: "generadoPor", select: "nombre" }) // Solo necesitamos 'nombre' de generadoPor
+            .populate({ path: "generadoPor", select: "nombre" })
             .populate({ path: "local", select: "nombre gps" })
-            .select("cobrar comVenta porcentPago delivery direccion fecha hora local gps telefono detallePedido medioDePago estadoPedido createdAt generadoPor") // Incluye los nuevos campos
-            .sort({ fecha: -1, hora: -1 }) // Ordena por fecha y luego por hora
-            .limit(20); // Limita a 20 resultados
-
-            console.log(expressOrders.toString());
-            
+            .select("cobrar comVenta porcentPago delivery direccion fecha hora local gps telefono detallePedido medioDePago estadoPedido createdAt generadoPor")
+            .sort({ fecha: -1, hora: -1 })
+            .limit(20);
 
         const mappedExpressOrders = expressOrders.map(order => {
-            // clientName: los express vienen sin nombre (se usará generadoPor.nombre para quien creó el pedido)
-            // clientPhone: telefono
             const clientPhone = order.telefono || 'N/A';
             const deliveryCost = parseFloat(order.delivery || '0');
-            const cobrar = parseFloat(order.cobrar || '0'); // Nuevo campo
-            const comVenta = parseFloat(order.comVenta || '0'); // Nuevo campo
-            const porcentPago = parseFloat(order.porcentPago || '0'); // Nuevo campo
-            const generadoPorNombre = order.generadoPor?.nombre || 'N/A'; // Nuevo campo para quien creó
+            const cobrar = parseFloat(order.cobrar || '0');
+            const comVenta = parseFloat(order.comVenta || '0');
+            const porcentPago = parseFloat(order.porcentPago || '0');
+            const generadoPorNombre = order.generadoPor?.nombre || 'N/A';
 
-            // orderDate de los campos fecha y hora
             const orderDateISO = new Date(`${order.fecha}T${order.hora}:00.000Z`).toISOString();
-            const storeDetails = { // Objeto anidado
-                storeId: order.local?.[0]?._id?.toString() || null, // Accede al primer elemento [0]
-                nombre: order.local?.[0]?.nombre || 'Local desconocido', // Accede al primer elemento [0]
-                gps: order.local?.[0]?.gps || null, // Accede al primer elemento [0]
+            const storeDetails = {
+                storeId: order.local?.[0]?._id?.toString() || null,
+                nombre: order.local?.[0]?.nombre || 'Local desconocido',
+                gps: order.local?.[0]?.gps || null,
             };
 
             return {
                 id: order._id.toString(),
                 tipoPedido: 'express',
-                estadoPedido: order.estadoPedido,
-                clientName: 'Cliente Express', // Los express vienen sin nombre de cliente específico
+                estadoPedido: order.estadoPedido, 
+                clientName: 'Cliente Express',
                 clientPhone: clientPhone,
                 deliveryCost: deliveryCost,
                 medioDePago: order.medioDePago,
                 detail: order.detallePedido || '',
-                orderItems: [], // No traerá items
+                orderItems: [],
                 orderDate: orderDateISO,
                 deliveryAddressDetails: {
                     fullAddress: order.direccion || '',
                     gps: order.gps || '0,0',
-                    name: null, // No traerá nombre de dirección
-                    reference: null, // No traerá referencia
+                    name: null,
+                    reference: null,
                 },
-                storeDetails: storeDetails, // Objeto anidado con detalles de la tienda
+                storeDetails: storeDetails,
                 createdAt: order.createdAt?.toISOString() || new Date(0).toISOString(),
-                // Nuevos campos específicos de Express para el motorizado
                 cobrar: cobrar,
                 comVenta: comVenta,
                 porcentPago: porcentPago,
-                generadoPorName: generadoPorNombre, // Quien creó el pedido
+                generadoPorName: generadoPorNombre,
             };
         });
         allOrders = [...allOrders, ...mappedExpressOrders];
@@ -1508,68 +1504,81 @@ export const obtenerTodosLosPedidosSinDriver = async (req, res) => {
 
         // --- 2. Obtener Pedidos de App (Modelo PedidoApp) ---
         const appOrders = await PedidoApp.find({
-            driver: null,
-            estadoPedido: { $in: ['pendiente', 'sin asignar', 'aceptado'] }
+            driver: null, // Sin driver asignado
+            // Los estados que indican que un pedido de app necesita un driver son:
+            // 'nuevo' (recién creado, pendiente en la tienda),
+            // 'preparando' (en preparación en la tienda),
+            // 'listo_para_recojo' (debería venir de estadoTienda, pero en este modelo no hay un estado 'buscando_driver' explícito en estadoPedido para la app,
+            // por lo que se asume que si el estado de tienda es 'listo_para_recojo' Y no hay driver, necesita uno).
+            // NOTA: Con tu estadoPedido actual, 'nuevo' y 'preparando' son los que se deducen que están con la tienda.
+            // Para 'buscando_driver', tu 'estadoPedido' no lo incluye explícitamente, pero si 'estadoTienda' es 'listo_para_recojo',
+            // y no hay driver, también se buscaría. Aquí usaremos los estados de tu enum `estadoPedido`.
+            estadoPedido: { $in: ['nuevo', 'preparando'] } // Incluye los estados de la tienda que esperan driver
+            // Si un pedido está 'listo_para_recojo' en estadoTienda, tu lógica de backend debería
+            // actualizar 'estadoPedido' a 'buscando_driver' (si existiera en tu enum de estadoPedido)
+            // o a un estado que lo haga visible para los drivers.
+            // Dada la ausencia de 'buscando_driver' en tu enum de estadoPedido, solo podemos usar los actuales.
         })
-            .populate('userId', 'nombre telefono') // Necesitamos nombre y telefono de userId
+            .populate('userId', 'nombre telefono')
             .populate({
                 path: 'storeDetails.storeId',
-                select: 'nombre gps' // Asegúrate de que 'storeId' en PedidoApp sea una referencia y no un subdocumento
+                select: 'nombre gps' // Tu AppStoreDetailsSchema actual no tiene 'manejaEstadosTienda' ni 'tiempoEstimadoPreparacion'
             })
-            .select("numeroPedido subTotal porcentPago deliveryCost totalAmount notes orderItems orderDate deliveryAddress storeDetails paymentMethod estadoPedido createdAt") // Incluye los nuevos campos
+            .select("numeroPedido subtotal porcentPago deliveryCost totalAmount notes orderItems orderDate deliveryAddress storeDetails paymentMethod estadoPedido estadoTienda createdAt") // Se mantiene 'estadoTienda' aunque no esté en el populate de storeDetails
             .sort({ createdAt: 1 })
             .limit(20);
 
         const mappedAppOrders = appOrders.map(order => ({
             id: order._id.toString(),
             tipoPedido: 'app',
-            estadoPedido: order.estadoPedido,
+            estadoPedido: order.estadoPedido, 
+            estadoTienda: order.estadoTienda, // Aquí se mapea el estado de la tienda
             clientName: order.userId?.nombre || 'N/A',
             clientPhone: order.userId?.telefono || 'N/A',
             deliveryCost: order.deliveryCost || 0,
-            medioDePago: order.paymentMethod || 'efectivo', // `paymentMethod` mapea a `medioDePago`
+            medioDePago: order.paymentMethod || 'efectivo',
             totalAmount: order.totalAmount || 0,
             notes: order.notes || '',
             orderItems: order.orderItems?.map(item => ({
-                productId: item.productId?.toString() || '', // Asegúrate de convertir a string
+                productId: item.productId?.toString() || '',
                 quantity: item.quantity || 0,
                 unitPrice: item.unitPrice || 0,
                 totalItemPrice: item.totalItemPrice || 0,
-                selectedOptions: item.selectedOptions || [], // Asegúrate de que esto sea un array, incluso si está vacío
+                selectedOptions: item.selectedOptions || [],
             })) || [],
             orderDate: order.orderDate?.toISOString() || new Date(0).toISOString(),
             deliveryAddressDetails: {
-                name: order.deliveryAddress?.nombreUbicacion || null,
-                fullAddress: order.deliveryAddress?.direccionCompleta || '',
+                name: order.deliveryAddress?.name || null, 
+                fullAddress: order.deliveryAddress?.fullAddress || '', 
                 gps: order.deliveryAddress?.gps || '0,0',
-                reference: order.deliveryAddress?.referencia || null,
+                reference: order.deliveryAddress?.reference || null, 
             },
             storeDetails: {
                 storeId: order.storeDetails?.storeId?._id?.toString() || null,
                 nombre: order.storeDetails?.storeId?.nombre || 'Tienda Desconocida',
                 gps: order.storeDetails?.storeId?.gps || null,
+                // No se pueden mapear 'manejaEstadosTienda' ni 'tiempoEstimadoPreparacion' aquí
+                // porque no están en tu `AppStoreDetailsSchema` actual ni en el populate de `storeId`.
             },
             createdAt: order.createdAt?.toISOString() || new Date(0).toISOString(),
-            // Nuevos campos específicos de App
             numeroPedido: order.numeroPedido || null,
-            subTotal: order.subTotal || 0,
+            subTotal: order.subtotal || 0, 
             porcentPago: order.porcentPago || 0,
         }));
         allOrders = [...allOrders, ...mappedAppOrders];
 
 
         // --- 3. Obtener Pedidos de Paquetería (Modelo EnvioPaquete) ---
-        const packageOrders = await EnvioPaquete.find({ driverAsignado: null })
-            .populate('cliente', 'nombre telefono') // Necesitamos nombre y telefono del cliente
-            // .populate('generadoPor', 'nombre email telefono') // No se mencionó su uso para mapeo de cliente/teléfono
-            .select("costoEnvio distanciaEnvioKm medioDePago quienPagaEnvio horaRecojoEstimada notasPedido recojo entrega fechaCreacion estadoPedido createdAt") // Incluye recojo y entrega completos
+        const packageOrders = await EnvioPaquete.find({ driverAsignado: null }) 
+            .populate('cliente', 'nombre telefono')
+            .select("costoEnvio distanciaEnvioKm medioDePago quienPagaEnvio horaRecojoEstimada notasPedido recojo entrega fechaCreacion estadoPedido createdAt")
             .sort({ fechaCreacion: -1 })
             .limit(20);
 
         const mappedPackageOrders = packageOrders.map(order => ({
             id: order._id.toString(),
             tipoPedido: 'paqueteria',
-            estadoPedido: order.estadoPedido,
+            estadoPedido: order.estadoPedido, 
             clientName: order.cliente?.nombre || 'N/A',
             clientPhone: order.cliente?.telefono || 'N/A',
             deliveryCost: order.costoEnvio || 0,
@@ -1579,7 +1588,7 @@ export const obtenerTodosLosPedidosSinDriver = async (req, res) => {
                 direccion: order.recojo?.direccion || '',
                 referencia: order.recojo?.referencia || null,
                 telefonoContacto: order.recojo?.telefonoContacto || null,
-                detallesAdicionales: order.recojo?.detallesAdicionales || null, // **Añadido**
+                detallesAdicionales: order.recojo?.detallesAdicionales || null,
                 gps: (order.recojo?.gps?.latitude && order.recojo?.gps?.longitude)
                     ? `${order.recojo.gps.latitude},${order.recojo.gps.longitude}`
                     : '0,0',
@@ -1589,12 +1598,12 @@ export const obtenerTodosLosPedidosSinDriver = async (req, res) => {
                 gps: (order.entrega?.gps?.latitude && order.entrega?.gps?.longitude)
                     ? `${order.entrega.gps.latitude},${order.entrega.gps.longitude}`
                     : '0,0',
-                name: null, // No traera este campo
+                name: null,
                 reference: order.entrega?.referencia || null,
-                telefonoContacto: order.entrega?.telefonoContacto || null, // **Añadido**
-                detallesAdicionales: order.entrega?.detallesAdicionales || null, // **Añadido**
+                telefonoContacto: order.entrega?.telefonoContacto || null,
+                detallesAdicionales: order.entrega?.detallesAdicionales || null,
             },
-            notes: null, // No traerá según tu indicación explícita
+            notes: order.notasPedido || '', 
             orderDate: order.fechaCreacion?.toISOString() || new Date(0).toISOString(),
             horaRecojoEstimada: order.horaRecojoEstimada || null,
             createdAt: order.createdAt?.toISOString() || new Date(0).toISOString(),

@@ -158,6 +158,11 @@ const pedidoAppSchema = mongoose.Schema(
             type: AppStoreDetailsSchema,
             required: true,
         },
+        estadoTienda: {
+            type: String,
+            enum: ['pendiente', 'en_preparacion', 'listo_para_recojo', 'tienda_cancelado'],
+            default: 'pendiente',
+        },
 
         // Campos adicionales que puedes gestionar en el backend para este tipo de pedido
         tipoPedido: {
@@ -166,20 +171,21 @@ const pedidoAppSchema = mongoose.Schema(
             default: "app", // Por defecto para este modelo, será "app"
             immutable: true, // Una vez establecido como "app", no debería cambiar
         },
-        estadoPedido: {
+        estadoPedido: { 
             type: String,
             enum: [
-                "sin asignar",
-                "pendiente", // Estado inicial para pedidos de la app
-                "aceptado",
-                "en local",
-                "recogido",
-                "entregado",
-                "rechazado",
-                "cancelado" // Añadir un estado de 'cancelado' podría ser útil
+                'nuevo',               // Pedido recién creado (estadoTienda: 'creado', driver: null)
+                'preparando',          // Tienda preparando (estadoTienda: 'en_preparacion', driver: null)
+                'driver_asignado',     // Un driver aceptó el pedido
+                'en_camino_a_origen',  // Driver se dirige a la tienda
+                'en_tienda',           // Driver llegó a la tienda
+                'recogido',            // Driver recogió el pedido
+                'en_destino',          // Driver llegó al cliente
+                'entregado',           // Pedido entregado
+                'cancelado',           // Pedido cancelado (por tienda o driver)
             ],
-            default: "pendiente",
-            trim: true,
+            default: 'nuevo',
+            required: true
         },
         driver: { // Quién es el driver asignado
             type: mongoose.Schema.Types.ObjectId,
