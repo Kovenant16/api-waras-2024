@@ -135,6 +135,8 @@ const pedidosSchema = mongoose.Schema(
     }
 );
 
+pedidosSchema.index({ driver: 1, estadoPedido: 1 });
+
 
 const Pedido = mongoose.model("Pedido", pedidosSchema);
 export default Pedido;

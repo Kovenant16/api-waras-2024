@@ -8,6 +8,7 @@ import { Server } from 'socket.io';
 import { sendMessage, sendMessageWithId, deleteMessageWithId } from "../bot/bot.js";
 import { coordenadasPoligonoInicial, coordenadasPoligonoSecundario } from "../files/coordenadas.js";
 import { enviarMensajeAsignacion, startSock } from "../bot/botWhatsapp.js";
+import moment from 'moment-timezone'; // Para un manejo robusto de fechas y zonas horarias
 
 
 const io = new Server(/* Parámetros del servidor, como la instancia de tu servidor HTTP */);
@@ -1631,6 +1632,513 @@ export const obtenerTodosLosPedidosSinDriver = async (req, res) => {
         res.status(500).json({ msg: 'Error interno del servidor al obtener pedidos.' });
     }
 };
+
+
+export const acceptAppOrder = async (req, res) => {
+    const { id } = req.params; // ID del pedido a aceptar
+    const driverId = req.usuario._id; // Asume que el ID del driver viene del token JWT autenticado
+    console.log("id del usuario request ",req.usuario._id)
+
+    if (!driverId) {
+        console.log(`Error: No se encontró el ID del driver en la solicitud para el pedido de App ${id}`);
+        return res.status(401).json({
+            msg: 'No autorizado: ID de driver no disponible.',
+        });
+    }
+
+    try {
+        console.log(`Intentando aceptar pedido de App con ID: ${id} para driver: ${driverId}`);
+        const order = await PedidoApp.findById(id);
+
+        if (!order) {
+            console.log(`Error: Pedido de App con ID ${id} no encontrado.`);
+            return res.status(404).json({
+                msg: 'Pedido de App no encontrado.',
+            });
+        }
+
+        // Verifica si el pedido ya tiene un driver asignado
+        if (order.driver) {
+            console.log(`Advertencia: Pedido de App ${id} ya tiene driver asignado: ${order.driver}. No se permite reasignar.`);
+            return res.status(400).json({
+                msg: 'Este pedido de App ya ha sido aceptado por otro driver.',
+            });
+        }
+
+        // Asigna el driver y actualiza el estado del pedido
+        order.driver = driverId;
+        order.estadoPedido = 'driver_asignado'; // O el estado apropiado, ej. 'en_recojo'
+        order.fechaAceptacionDriver = new Date(); // Agrega la fecha de aceptación si tienes este campo
+
+        await order.save();
+        console.log(`✅ Pedido de App ${id} aceptado y asignado al driver ${driverId} con éxito.`);
+        res.status(200).json({
+            msg: 'Pedido de App aceptado con éxito.',
+            order: order,
+        });
+
+    } catch (error) {
+        console.log(`❌ Error al aceptar pedido de App ${id}: ${error.message}`);
+        console.error('Error en acceptAppOrder:', error);
+        res.status(500).json({
+            msg: 'Error interno del servidor al aceptar pedido de App.',
+        });
+    }
+};
+
+// --- Función para aceptar un Pedido Express ---
+export const acceptExpressOrder = async (req, res) => {
+    const { id } = req.params; // ID del pedido a aceptar
+    const driverId = req.usuario._id; // Asume que el ID del driver viene del token JWT autenticado
+
+    if (!driverId) {
+        console.log(`Error: No se encontró el ID del driver en la solicitud para el pedido Express ${id}`);
+        return res.status(401).json({
+            msg: 'No autorizado: ID de driver no disponible.',
+        });
+    }
+
+    try {
+        console.log(`Intentando aceptar pedido Express con ID: ${id} para driver: ${driverId}`);
+        const order = await Pedido.findById(id);
+
+        if (!order) {
+            console.log(`Error: Pedido Express con ID ${id} no encontrado.`);
+            return res.status(404).json({
+                msg: 'Pedido Express no encontrado.',
+            });
+        }
+
+        // Verifica si el pedido ya tiene un driver asignado
+        if (order.driver) {
+            console.log(`Advertencia: Pedido Express ${id} ya tiene driver asignado: ${order.driver}. No se permite reasignar.`);
+            return res.status(400).json({
+                msg: 'Este pedido Express ya ha sido aceptado por otro driver.',
+            });
+        }
+
+        // Asigna el driver y actualiza el estado del pedido
+        order.driver = driverId;
+        order.estadoPedido = 'driver_asignado'; // O el estado apropiado para pedidos Express
+        // Puedes agregar un campo fechaAceptacionDriver aquí si lo tienes en tu modelo Pedido
+        
+        await order.save();
+        console.log(`✅ Pedido Express ${id} aceptado y asignado al driver ${driverId} con éxito.`);
+        res.status(200).json({
+            msg: 'Pedido Express aceptado con éxito.',
+            order: order,
+        });
+
+    } catch (error) {
+        console.log(`❌ Error al aceptar pedido Express ${id}: ${error.message}`);
+        console.error('Error en acceptExpressOrder:', error);
+        res.status(500).json({
+            msg: 'Error interno del servidor al aceptar pedido Express.',
+        });
+    }
+};
+
+// --- Función para aceptar un Pedido de Paquetería ---
+export const acceptPackageOrder = async (req, res) => {
+    const { id } = req.params; // ID del pedido a aceptar
+    const driverId = req.usuario._id; // Asume que el ID del driver viene del token JWT autenticado
+
+    if (!driverId) {
+        console.log(`Error: No se encontró el ID del driver en la solicitud para el pedido de Paquetería ${id}`);
+        return res.status(401).json({
+            msg: 'No autorizado: ID de driver no disponible.',
+        });
+    }
+
+    try {
+        console.log(`Intentando aceptar pedido de Paquetería con ID: ${id} para driver: ${driverId}`);
+        const order = await EnvioPaquete.findById(id);
+
+        if (!order) {
+            console.log(`Error: Pedido de Paquetería con ID ${id} no encontrado.`);
+            return res.status(404).json({
+                msg: 'Pedido de Paquetería no encontrado.',
+            });
+        }
+
+        // Verifica si el pedido ya tiene un driver asignado
+        if (order.driverAsignado) {
+            console.log(`Advertencia: Pedido de Paquetería ${id} ya tiene driver asignado: ${order.driverAsignado}. No se permite reasignar.`);
+            return res.status(400).json({
+                msg: 'Este pedido de Paquetería ya ha sido aceptado por otro driver.',
+            });
+        }
+
+        // Asigna el driver y actualiza el estado del pedido
+        order.driverAsignado = driverId;
+        order.estadoPedido = 'driver_asignado'; // O el estado apropiado para pedidos de Paquetería
+        // Puedes agregar un campo fechaAceptacionDriver aquí si lo tienes en tu modelo EnvioPaquete
+
+        await order.save();
+        console.log(`✅ Pedido de Paquetería ${id} aceptado y asignado al driver ${driverId} con éxito.`);
+        res.status(200).json({
+            msg: 'Pedido de Paquetería aceptado con éxito.',
+            order: order,
+        });
+
+    } catch (error) {
+        console.log(`❌ Error al aceptar pedido de Paquetería ${id}: ${error.message}`);
+        console.error('Error en acceptPackageOrder:', error);
+        res.status(500).json({
+            msg: 'Error interno del servidor al aceptar pedido de Paquetería.',
+        });
+    }
+};
+
+export const getMyAssignedOrders = async (req, res) => {
+    // El ID del driver se obtiene de req.usuario._id
+    // Asume que req.usuario es establecido por un middleware de autenticación (ej. JWT)
+    const driverId = req.usuario._id; 
+
+    if (!driverId) {
+        console.error(`❌ Error: No se encontró el ID del driver en la solicitud (req.usuario._id).`);
+        return res.status(401).json({
+            msg: 'No autorizado: ID de driver no disponible.',
+        });
+    }
+
+    try {
+        console.log(`🚀 Iniciando búsqueda de pedidos asignados para driver: ${driverId}`);
+        let assignedOrders = [];
+
+        // 1. Buscar Pedidos de App asignados (campo: driver, estadoPedido distinto de 'entregado')
+        console.log(`🔍 Buscando Pedidos de App para driver: ${driverId} y estado != 'entregado'`);
+        const appOrders = await PedidoApp.find({
+            driver: driverId,
+            estadoPedido: { $ne: 'entregado' } // <--- FILTRO AÑADIDO: estadoPedido no sea 'entregado'
+        })
+        .populate('userId', 'nombre telefono')
+        .populate({
+            path: 'storeDetails.storeId',
+            select: 'nombre gps'
+        })
+        .select("numeroPedido subtotal porcentPago deliveryCost totalAmount notes orderItems orderDate deliveryAddress storeDetails paymentMethod estadoPedido estadoTienda createdAt");
+
+        const mappedAppOrders = appOrders.map(order => ({
+            id: order._id.toString(),
+            tipoPedido: 'app',
+            estadoPedido: order.estadoPedido,
+            estadoTienda: order.estadoTienda,
+            clientName: order.userId?.nombre || 'N/A',
+            clientPhone: order.userId?.telefono || 'N/A',
+            deliveryCost: order.deliveryCost || 0,
+            medioDePago: order.paymentMethod || 'efectivo',
+            totalAmount: order.totalAmount || 0,
+            notes: order.notes || '',
+            orderItems: order.orderItems?.map(item => ({
+                productId: item.productId?.toString() || '',
+                quantity: item.quantity || 0,
+                unitPrice: item.unitPrice || 0,
+                totalItemPrice: item.totalItemPrice || 0,
+                selectedOptions: item.selectedOptions || [],
+            })) || [],
+            orderDate: order.orderDate?.toISOString() || new Date(0).toISOString(),
+            deliveryAddressDetails: {
+                name: order.deliveryAddress?.name || null, 
+                fullAddress: order.deliveryAddress?.fullAddress || '', 
+                gps: order.deliveryAddress?.gps || '0,0',
+                reference: order.deliveryAddress?.reference || null, 
+            },
+            storeDetails: {
+                storeId: order.storeDetails?.storeId?._id?.toString() || null,
+                nombre: order.storeDetails?.storeId?.nombre || 'Tienda Desconocida',
+                gps: order.storeDetails?.storeId?.gps || null,
+            },
+            createdAt: order.createdAt?.toISOString() || new Date(0).toISOString(),
+            numeroPedido: order.numeroPedido || null,
+            subTotal: order.subtotal || 0, 
+            porcentPago: order.porcentPago || 0,
+            driver: order.driver?.toString(),
+        }));
+        assignedOrders = [...assignedOrders, ...mappedAppOrders];
+        console.log(`✅ Se encontraron ${mappedAppOrders.length} pedidos de App asignados (no 'entregado').`);
+
+
+        // 2. Buscar Pedidos Express asignados (campo: driver, estadoPedido distinto de 'entregado')
+        console.log(`🔍 Buscando Pedidos Express para driver: ${driverId} y estado != 'entregado'`);
+        const expressOrders = await Pedido.find({
+            driver: driverId,
+            estadoPedido: { $ne: 'entregado' } // <--- FILTRO AÑADIDO: estadoPedido no sea 'entregado'
+        })
+        .populate({ path: "generadoPor", select: "nombre" })
+        .populate({ path: "local", select: "nombre gps" })
+        .select("cobrar comVenta porcentPago delivery direccion fecha hora local gps telefono detallePedido medioDePago estadoPedido createdAt generadoPor");
+
+        const mappedExpressOrders = expressOrders.map(order => {
+            const clientPhone = order.telefono || 'N/A';
+            const deliveryCost = parseFloat(order.delivery || '0');
+            const cobrar = parseFloat(order.cobrar || '0');
+            const comVenta = parseFloat(order.comVenta || '0');
+            const porcentPago = parseFloat(order.porcentPago || '0');
+            const generadoPorNombre = order.generadoPor?.nombre || 'N/A';
+
+            const orderDateISO = new Date(`${order.fecha}T${order.hora}:00.000Z`).toISOString();
+            const storeDetails = {
+                storeId: order.local?.[0]?._id?.toString() || null,
+                nombre: order.local?.[0]?.nombre || 'Local desconocido',
+                gps: order.local?.[0]?.gps || null,
+            };
+
+            return {
+                id: order._id.toString(),
+                tipoPedido: 'express',
+                estadoPedido: order.estadoPedido, 
+                clientName: 'Cliente Express',
+                clientPhone: clientPhone,
+                deliveryCost: deliveryCost,
+                medioDePago: order.medioDePago,
+                detail: order.detallePedido || '',
+                orderItems: [],
+                orderDate: orderDateISO,
+                deliveryAddressDetails: {
+                    fullAddress: order.direccion || '',
+                    gps: order.gps || '0,0',
+                    name: null,
+                    reference: null,
+                },
+                storeDetails: storeDetails,
+                createdAt: order.createdAt?.toISOString() || new Date(0).toISOString(),
+                cobrar: cobrar,
+                comVenta: comVenta,
+                porcentPago: porcentPago,
+                generadoPorName: generadoPorNombre,
+                driver: order.driver?.toString(),
+            };
+        });
+        assignedOrders = [...assignedOrders, ...mappedExpressOrders];
+        console.log(`✅ Se encontraron ${mappedExpressOrders.length} pedidos Express asignados (no 'entregado').`);
+
+
+        // 3. Buscar Pedidos de Paquetería asignados (campo: driverAsignado, estadoPedido distinto de 'entregado')
+        console.log(`🔍 Buscando Pedidos de Paquetería para driver: ${driverId} y estado != 'entregado'`);
+        const packageOrders = await EnvioPaquete.find({
+            driverAsignado: driverId,
+            estadoPedido: { $ne: 'entregado' } // <--- FILTRO AÑADIDO: estadoPedido no sea 'entregado'
+        }) 
+        .populate('cliente', 'nombre telefono')
+        .select("costoEnvio distanciaEnvioKm medioDePago quienPagaEnvio horaRecojoEstimada notasPedido recojo entrega fechaCreacion estadoPedido createdAt");
+
+        const mappedPackageOrders = packageOrders.map(order => ({
+            id: order._id.toString(),
+            tipoPedido: 'paqueteria',
+            estadoPedido: order.estadoPedido, 
+            clientName: order.cliente?.nombre || 'N/A',
+            clientPhone: order.cliente?.telefono || 'N/A',
+            deliveryCost: order.costoEnvio || 0,
+            distanceInKm: order.distanciaEnvioKm || 0,
+            medioDePago: order.medioDePago || 'efectivo',
+            porcentPago: order.porcentPago || 0.8,
+            recojoDetails: {
+                direccion: order.recojo?.direccion || '',
+                referencia: order.recojo?.referencia || null,
+                telefonoContacto: order.recojo?.telefonoContacto || null,
+                detallesAdicionales: order.recojo?.detallesAdicionales || null,
+                gps: (order.recojo?.gps?.latitude && order.recojo?.gps?.longitude)
+                    ? `${order.recojo.gps.latitude},${order.recojo.gps.longitude}`
+                    : '0,0',
+            },
+            deliveryAddressDetails: {
+                fullAddress: order.entrega?.direccion || '',
+                gps: (order.entrega?.gps?.latitude && order.entrega?.gps?.longitude)
+                    ? `${order.entrega.gps.latitude},${order.entrega.gps.longitude}`
+                    : '0,0',
+                name: null,
+                reference: order.entrega?.referencia || null,
+                telefonoContacto: order.entrega?.telefonoContacto || null,
+                detallesAdicionales: order.entrega?.detallesAdicionales || null,
+            },
+            notes: order.notasPedido || '', 
+            orderDate: order.fechaCreacion?.toISOString() || new Date(0).toISOString(),
+            horaRecojoEstimada: order.horaRecojoEstimada || null,
+            createdAt: order.createdAt?.toISOString() || new Date(0).toISOString(),
+            driverAsignado: order.driverAsignado?.toString(),
+        }));
+        assignedOrders = [...assignedOrders, ...mappedPackageOrders];
+        console.log(`✅ Se encontraron ${mappedPackageOrders.length} pedidos de Paquetería asignados (no 'entregado').`);
+
+
+        // --- Ordenamiento Final ---
+        assignedOrders.sort((a, b) => {
+            const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+            const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+            return dateB.getTime() - dateA.getTime(); // Más recientes primero
+        });
+
+        console.log(`Total de pedidos asignados encontrados para driver ${driverId}: ${assignedOrders.length}`);
+        console.log(`--- FIN DE BÚSQUEDA DE PEDIDOS ASIGNADOS ---`);
+
+        res.status(200).json({
+            msg: "Pedidos asignados encontrados.",
+            pedidos: assignedOrders
+        });
+
+    } catch (error) {
+        console.error(`❌ Error al obtener pedidos asignados para driver ${driverId}: ${error.message}`);
+        console.error('Pila de errores:', error.stack); 
+        res.status(500).json({
+            msg: 'Error interno del servidor al obtener pedidos asignados.'
+        });
+    }
+};
+
+export const getDriverOrdersByDate = async (req, res) => {
+    // El ID del driver se obtiene de req.usuario._id, establecido por un middleware de autenticación (ej. JWT)
+    const driverId = req.usuario._id;
+    const { date } = req.query; // La fecha se espera como un parámetro de consulta (ej: ?date=DD/MM/YYYY)
+
+    if (!driverId) {
+        console.error(`❌ Error: No se encontró el ID del driver en la solicitud (req.usuario._id).`);
+        return res.status(401).json({
+            msg: 'No autorizado: ID de driver no disponible.',
+        });
+    }
+
+    if (!date) {
+        console.error(`❌ Error: La fecha no fue proporcionada en la solicitud.`);
+        return res.status(400).json({
+            msg: 'La fecha es un parámetro requerido (formato DD/MM/YYYY).',
+        });
+    }
+
+    // Parsear la fecha y establecer los límites del día en la zona horaria del servidor
+    let startOfDay, endOfDay, selectedDateMoment; // Renombrado a selectedDateMoment para mayor claridad
+    try {
+        // Se ha cambiado el formato de parseo a 'DD/MM/YYYY' para coincidir con la aplicación Flutter
+        selectedDateMoment = moment.tz(date, 'DD/MM/YYYY', 'America/Lima'); // Asume zona horaria de Huaraz, Ancash, Perú
+        if (!selectedDateMoment.isValid()) {
+            throw new Error('Formato de fecha inválido. Use DD/MM/YYYY.');
+        }
+        startOfDay = selectedDateMoment.startOf('day').toDate();
+        endOfDay = selectedDateMoment.endOf('day').toDate();
+        console.log(`⏳ Buscando pedidos para el día: ${date} (desde ${startOfDay} hasta ${endOfDay})`);
+    } catch (error) {
+        console.error(`❌ Error al parsear la fecha ${date}: ${error.message}`);
+        return res.status(400).json({
+            msg: `Formato de fecha inválido. Use DD/MM/YYYY. Detalles: ${error.message}`,
+        });
+    }
+
+    try {
+        console.log(`🚀 Iniciando búsqueda de pedidos entregados para driver: ${driverId} en la fecha ${date}`);
+        let completedOrders = [];
+
+        // 1. Buscar Pedidos de App entregados
+        // Campos solicitados: deliveryAddress.fullAddress, numeroPedido, deliveryCost, totalAmount, subtotal, orderDate, storeDetails.nombre, porcentPago
+        console.log(`🔍 Buscando Pedidos de App entregados para driver: ${driverId} y fecha: ${date}`);
+        const appOrders = await PedidoApp.find({
+            driver: driverId,
+            orderDate: { $gte: startOfDay, $lte: endOfDay }
+        })
+        .populate({
+            path: 'storeDetails.storeId',
+            select: 'nombre' // Solo se necesita el nombre de la tienda
+        })
+        .select("deliveryAddress.fullAddress numeroPedido deliveryCost totalAmount subtotal orderDate porcentPago storeDetails.storeId"); // Seleccionar los campos necesarios
+
+        const mappedAppOrders = appOrders.map(order => ({
+            id: order._id.toString(),
+            tipoPedido: 'app',
+            numeroPedido: order.numeroPedido || null,
+            orderDate: order.orderDate?.toISOString() || new Date(0).toISOString(),
+            deliveryAddress: order.deliveryAddress?.fullAddress || '',
+            deliveryCost: order.deliveryCost || 0,
+            totalAmount: order.totalAmount || 0,
+            subtotal: order.subtotal || 0,
+            storeName: order.storeDetails?.storeId?.nombre || 'Tienda Desconocida',
+            porcentPago: order.porcentPago || 0,
+            // driver: order.driver?.toString(), // No solicitado, pero útil para depuración
+        }));
+        completedOrders = [...completedOrders, ...mappedAppOrders];
+        console.log(`✅ Se encontraron ${mappedAppOrders.length} pedidos de App entregados.`);
+
+
+        // 2. Buscar Pedidos Express entregados
+        // Campos solicitados: estado, local.nombre, hora, fecha, direccion, telefono, cobrar, delivery, comVenta, porcentPago
+        console.log(`🔍 Buscando Pedidos Express entregados para driver: ${driverId} y fecha: ${date}`);
+        const expressOrders = await Pedido.find({
+            driver: driverId,
+            // CAMBIO AQUI: Filtrar por el campo 'fecha' como string 'YYYY-MM-DD'
+            fecha: selectedDateMoment.format('YYYY-MM-DD')
+        })
+        .populate({ path: "local", select: "nombre" }) // Solo el nombre del local
+        .select("estadoPedido local hora fecha direccion telefono cobrar delivery comVenta porcentPago"); // Campos necesarios
+
+        const mappedExpressOrders = expressOrders.map(order => ({
+            id: order._id.toString(),
+            tipoPedido: 'express',
+            estado: order.estadoPedido, // Asumo que se refiere a estadoPedido
+            storeName: order.local?.[0]?.nombre || 'Local desconocido',
+            orderTime: order.hora || '', // Hora del pedido
+            orderDate: order.fecha || '', // Fecha del pedido (como string)
+            deliveryAddress: order.direccion || '',
+            clientPhone: order.telefono || 'N/A',
+            cobrar: parseFloat(order.cobrar || '0'), // Monto a cobrar
+            deliveryCost: parseFloat(order.delivery || '0'), // Costo de delivery
+            comVenta: parseFloat(order.comVenta || '0'), // Comisión de venta
+            porcentPago: parseFloat(order.porcentPago || '0'), // Porcentaje de pago (ganancia driver)
+            // driver: order.driver?.toString(), // No solicitado
+        }));
+        completedOrders = [...completedOrders, ...mappedExpressOrders];
+        console.log(`✅ Se encontraron ${mappedExpressOrders.length} pedidos Express entregados.`);
+
+
+        // 3. Buscar Pedidos de Paquetería entregados
+        // Campos solicitados: costoEnvio, recojo.direccion, entrega.direccion, horaRecojoEstimada, porcentPago
+        console.log(`🔍 Buscando Pedidos de Paquetería entregados para driver: ${driverId} y fecha: ${date}`);
+        const packageOrders = await EnvioPaquete.find({
+            driverAsignado: driverId,
+            fechaCreacion: { $gte: startOfDay, $lte: endOfDay }
+        })
+        .select("costoEnvio recojo.direccion entrega.direccion horaRecojoEstimada porcentPago"); // Campos necesarios
+
+        const mappedPackageOrders = packageOrders.map(order => ({
+            id: order._id.toString(),
+            tipoPedido: 'paqueteria',
+            costoEnvio: order.costoEnvio || 0,
+            pickupAddress: order.recojo?.direccion || '',
+            deliveryAddress: order.entrega?.direccion || '',
+            estimatedPickupTime: order.horaRecojoEstimada || null,
+            porcentPago: order.porcentPago || 0, // Porcentaje de pago (ganancia driver)
+            // driverAsignado: order.driverAsignado?.toString(), // No solicitado
+        }));
+        completedOrders = [...completedOrders, ...mappedPackageOrders];
+        console.log(`✅ Se encontraron ${mappedPackageOrders.length} pedidos de Paquetería entregados.`);
+
+
+        // --- Ordenamiento Final (opcional, pero buena práctica) ---
+        // Ordenar por fecha de creación de forma descendente (más recientes primero)
+        completedOrders.sort((a, b) => {
+            const dateA = a.orderDate ? new Date(a.orderDate) : new Date(0); // Para PedidoApp y Paqueteria
+            // Para Pedido Express, podrías necesitar un manejo específico de 'fecha' y 'hora'
+            // O asume que 'orderDate' se mapea a una fecha ISO completa para todos los tipos
+            const dateB = b.orderDate ? new Date(b.orderDate) : new Date(0);
+            return dateB.getTime() - dateA.getTime();
+        });
+
+        console.log(`Total de pedidos entregados encontrados para driver ${driverId} en ${date}: ${completedOrders.length}`);
+        console.log(`--- FIN DE BÚSQUEDA DE PEDIDOS ENTREGADOS ---`);
+
+        res.status(200).json({
+            msg: "Pedidos entregados para la fecha encontrados.",
+            pedidos: completedOrders
+        });
+
+    } catch (error) {
+        console.error(`❌ Error al obtener pedidos entregados para driver ${driverId} en la fecha ${date}: ${error.message}`);
+        console.error('Pila de errores:', error.stack);
+        res.status(500).json({
+            msg: 'Error interno del servidor al obtener pedidos para la fecha.',
+            error: error.message // Incluir el mensaje de error para depuración
+        });
+    }
+};
+
+
 
 
 

@@ -176,8 +176,8 @@ const pedidoAppSchema = mongoose.Schema(
             enum: [
                 'nuevo',               // Pedido recién creado (estadoTienda: 'creado', driver: null)
                 'preparando',          // Tienda preparando (estadoTienda: 'en_preparacion', driver: null)
-                'driver_asignado',     // Un driver aceptó el pedido
-                'en_camino_a_origen',  // Driver se dirige a la tienda
+                'pendiente',     // Un driver aceptó el pedido
+                'driver_asignado',  // Driver se dirige a la tienda
                 'en_tienda',           // Driver llegó a la tienda
                 'recogido',            // Driver recogió el pedido
                 'en_destino',          // Driver llegó al cliente
@@ -213,6 +213,8 @@ const pedidoAppSchema = mongoose.Schema(
         timestamps: true, // Mongoose automáticamente añade 'createdAt' y 'updatedAt'
     }
 );
+
+pedidoAppSchema.index({ driver: 1, estadoPedido: 1 });
 
 const PedidoApp = mongoose.model("PedidoApp", pedidoAppSchema);
 export default PedidoApp;

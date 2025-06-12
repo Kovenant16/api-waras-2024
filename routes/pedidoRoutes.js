@@ -39,7 +39,12 @@ import {
     calcularPrecioDelivery,
     obtenerLocalPorTelefono,
     calcularPrecioDeliveryDos,
-    obtenerTodosLosPedidosSinDriver,    
+    obtenerTodosLosPedidosSinDriver,
+    acceptAppOrder,
+    acceptExpressOrder,
+    acceptPackageOrder,
+    getMyAssignedOrders,
+    getDriverOrdersByDate
 } from "../controllers/pedidoController.js";
 import checkAuth from "../middleware/checkAuth.js";
 
@@ -50,9 +55,9 @@ router.get("/motorizados", obtenerMotorizados);
 router.get("/motorizadosActivos", obtenerMotorizadosActivos);
 router.post("/obtenerPedidoPorTelefono", obtenerPedidoPorTelefono);
 router.get("/locales", obtenerLocales)
-router.post('/obtenerClientes/',checkAuth, obtenerClientes);
-router.post('/asignarMotorizado/',checkAuth, asignarMotorizado);
-router.post('/nuevoPedidoSocio/',checkAuth, nuevoPedidoSocio);
+router.post('/obtenerClientes/', checkAuth, obtenerClientes);
+router.post('/asignarMotorizado/', checkAuth, asignarMotorizado);
+router.post('/nuevoPedidoSocio/', checkAuth, nuevoPedidoSocio);
 router.get("/ultimosVeintePedidos", checkAuth, obtenerUltimosVeintePedidos);
 router.get("/pedidosNoEntregados", /*checkAuth,*/ obtenerPedidosNoEntregados);
 router.get("/pedidosNoEntregadosSinDriver", checkAuth, obtenerPedidosNoEntregadosSinDriver);
@@ -67,23 +72,32 @@ router.post('/busquedaPorTelefonoYLocalSinGps', checkAuth, obtenerPedidosPorTele
 router.post('/pedidosSocio', checkAuth, obtenerPedidosSocio)
 router.get('/pedidoSocio/:id', checkAuth, obtenerPedidoSocio)
 router.post("/", checkAuth, nuevoPedido);
-router.post("/obtenerPedidosPorTelefono", checkAuth,obtenerPedidosPorTelefonoConGps)
-router.post("/obtenerPedidosPorTelefonoSinGps", checkAuth,obtenerPedidosSinGPS)
+router.post("/obtenerPedidosPorTelefono", checkAuth, obtenerPedidosPorTelefonoConGps)
+router.post("/obtenerPedidosPorTelefonoSinGps", checkAuth, obtenerPedidosSinGPS)
 router.put("/aceptarPedido/:id", checkAuth, aceptarPedido)
 router.put("/liberarPedido/:id", checkAuth, liberarPedido)
 router.put("/marcarEnLocal/:id", checkAuth, marcarPedidoEnLocal)
 router.put("/marcarRecogido/:id", checkAuth, marcarPedidoRecogido)
 router.put("/marcarEntregado/:id", checkAuth, marcarPedidoEntregado)
-router.put("/editarGPS/:id", checkAuth, actualizarCoordenadasPedido )
-router.delete("/eliminarPedidoSocio/:id", checkAuth,eliminarPedidoSocio)
+router.put("/editarGPS/:id", checkAuth, actualizarCoordenadasPedido)
+router.delete("/eliminarPedidoSocio/:id", checkAuth, eliminarPedidoSocio)
 router.post("/calcularPrecioDelivery", calcularPrecioDelivery)
 router.post("/calcularPrecioDeliveryDos", calcularPrecioDeliveryDos)
-router.post("/obtenerLocalPorTelefono",obtenerLocalPorTelefono)
+router.post("/obtenerLocalPorTelefono", obtenerLocalPorTelefono)
 router.get('/pedidosSinDriver', obtenerTodosLosPedidosSinDriver);
 router
     .route("/:id")
     .get(checkAuth, obtenerPedido)
     .put(checkAuth, editarPedido)
     .delete(checkAuth, eliminarPedido);
+
+
+// Nuevas rutas para aceptar pedidos
+router.post('/app/accept/:id', checkAuth, acceptAppOrder);
+router.post('/express/accept/:id', checkAuth, acceptExpressOrder);
+router.post('/paqueteria/accept/:id', checkAuth, acceptPackageOrder);
+router.get('/misPedidosAsignados/misPedidos', checkAuth, getMyAssignedOrders);
+router.get('/orders/by-date',checkAuth,getDriverOrdersByDate);
+
 
 export default router;

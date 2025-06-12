@@ -16,10 +16,10 @@ const envioPaqueteSchema = mongoose.Schema(
             type: String,
             enum: [
                 "pendiente",    // Creado, esperando asignación/confirmación
-                "asignado",     // Asignado a un driver
+                "aceptado",     // Asignado a un driver
                 "en_recojo",    // Driver en camino al punto de recojo
                 "recogido",     // Paquete recogido
-                "en_camino",    // Paquete en ruta de entrega
+                "en_entrega",    // Paquete en ruta de entrega
                 "entregado",    // Paquete entregado
                 "cancelado",    // Pedido cancelado
                 "rechazado",    // Pedido rechazado por driver o sistema
@@ -159,6 +159,8 @@ const envioPaqueteSchema = mongoose.Schema(
         timestamps: true,
     }
 );
+
+envioPaqueteSchema.index({ driverAsignado: 1, estadoPedido: 1 }); 
 
 const EnvioPaquete = mongoose.model("EnvioPaquete", envioPaqueteSchema);
 export default EnvioPaquete;
