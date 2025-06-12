@@ -2006,9 +2006,8 @@ export const getDriverOrdersByDate = async (req, res) => {
     }
 
     // Parsear la fecha y establecer los límites del día en la zona horaria del servidor
-    let startOfDay, endOfDay, selectedDateMoment; // Renombrado a selectedDateMoment para mayor claridad
+    let startOfDay, endOfDay, selectedDateMoment;
     try {
-        // Se ha cambiado el formato de parseo a 'DD/MM/YYYY' para coincidir con la aplicación Flutter
         selectedDateMoment = moment.tz(date, 'DD/MM/YYYY', 'America/Lima'); // Asume zona horaria de Huaraz, Ancash, Perú
         if (!selectedDateMoment.isValid()) {
             throw new Error('Formato de fecha inválido. Use DD/MM/YYYY.');
@@ -2029,6 +2028,7 @@ export const getDriverOrdersByDate = async (req, res) => {
 
         // 1. Buscar Pedidos de App entregados
         // Campos solicitados: deliveryAddress.fullAddress, numeroPedido, deliveryCost, totalAmount, subtotal, orderDate, storeDetails.nombre, porcentPago
+        // AHORA INCLUIMOS orderItems para calcular la comVenta
         console.log(`🔍 Buscando Pedidos de App entregados para driver: ${driverId} y fecha: ${date}`);
         const appOrders = await PedidoApp.find({
             driver: driverId,
@@ -2036,65 +2036,68 @@ export const getDriverOrdersByDate = async (req, res) => {
         })
         .populate({
             path: 'storeDetails.storeId',
-            select: 'nombre' // Solo se necesita el nombre de la tienda
+            select: 'nombre'
         })
-        .select("deliveryAddress.fullAddress numeroPedido deliveryCost totalAmount subtotal orderDate porcentPago storeDetails.storeId"); // Seleccionar los campos necesarios
+        .select("deliveryAddress.fullAddress numeroPedido deliveryCost totalAmount subtotal orderDate porcentPago storeDetails.storeId orderItems"); // Seleccionar orderItems
 
-        const mappedAppOrders = appOrders.map(order => ({
-            id: order._id.toString(),
-            tipoPedido: 'app',
-            numeroPedido: order.numeroPedido || null,
-            orderDate: order.orderDate?.toISOString() || new Date(0).toISOString(),
-            deliveryAddress: order.deliveryAddress?.fullAddress || '',
-            deliveryCost: order.deliveryCost || 0,
-            totalAmount: order.totalAmount || 0,
-            subtotal: order.subtotal || 0,
-            storeName: order.storeDetails?.storeId?.nombre || 'Tienda Desconocida',
-            porcentPago: order.porcentPago || 0,
-            // driver: order.driver?.toString(), // No solicitado, pero útil para depuración
-        }));
+        const mappedAppOrders = appOrders.map(order => {
+            // Calcular comVenta como la suma de las cantidades de los productos
+            const totalComVentaApp = order.orderItems ? 
+                                     order.orderItems.reduce((sum, item) => sum + (item.quantity || 0), 0) : 
+                                     0;
+
+            return {
+                id: order._id.toString(),
+                tipoPedido: 'app',
+                numeroPedido: order.numeroPedido || null,
+                orderDate: order.orderDate?.toISOString() || new Date(0).toISOString(),
+                deliveryAddress: order.deliveryAddress?.fullAddress || '',
+                deliveryCost: order.deliveryCost || 0,
+                totalAmount: order.totalAmount || 0,
+                subtotal: order.subtotal || 0,
+                storeName: order.storeDetails?.storeId?.nombre || 'Tienda Desconocida',
+                porcentPago: order.porcentPago || 0,
+                comVenta: totalComVentaApp, // Asignar la suma de las cantidades como comVenta
+            };
+        });
         completedOrders = [...completedOrders, ...mappedAppOrders];
         console.log(`✅ Se encontraron ${mappedAppOrders.length} pedidos de App entregados.`);
 
 
         // 2. Buscar Pedidos Express entregados
-        // Campos solicitados: estado, local.nombre, hora, fecha, direccion, telefono, cobrar, delivery, comVenta, porcentPago
         console.log(`🔍 Buscando Pedidos Express entregados para driver: ${driverId} y fecha: ${date}`);
         const expressOrders = await Pedido.find({
             driver: driverId,
-            // CAMBIO AQUI: Filtrar por el campo 'fecha' como string 'YYYY-MM-DD'
             fecha: selectedDateMoment.format('YYYY-MM-DD')
         })
-        .populate({ path: "local", select: "nombre" }) // Solo el nombre del local
-        .select("estadoPedido local hora fecha direccion telefono cobrar delivery comVenta porcentPago"); // Campos necesarios
+        .populate({ path: "local", select: "nombre" })
+        .select("estadoPedido local hora fecha direccion telefono cobrar delivery comVenta porcentPago");
 
         const mappedExpressOrders = expressOrders.map(order => ({
             id: order._id.toString(),
             tipoPedido: 'express',
-            estado: order.estadoPedido, // Asumo que se refiere a estadoPedido
+            estado: order.estadoPedido,
             storeName: order.local?.[0]?.nombre || 'Local desconocido',
-            orderTime: order.hora || '', // Hora del pedido
-            orderDate: order.fecha || '', // Fecha del pedido (como string)
+            orderTime: order.hora || '',
+            orderDate: order.fecha || '',
             deliveryAddress: order.direccion || '',
             clientPhone: order.telefono || 'N/A',
-            cobrar: parseFloat(order.cobrar || '0'), // Monto a cobrar
-            deliveryCost: parseFloat(order.delivery || '0'), // Costo de delivery
-            comVenta: parseFloat(order.comVenta || '0'), // Comisión de venta
-            porcentPago: parseFloat(order.porcentPago || '0'), // Porcentaje de pago (ganancia driver)
-            // driver: order.driver?.toString(), // No solicitado
+            cobrar: parseFloat(order.cobrar || '0'),
+            deliveryCost: parseFloat(order.delivery || '0'),
+            comVenta: parseFloat(order.comVenta || '0'), // Aquí comVenta sigue siendo el valor de la base de datos
+            porcentPago: parseFloat(order.porcentPago || '0'),
         }));
         completedOrders = [...completedOrders, ...mappedExpressOrders];
         console.log(`✅ Se encontraron ${mappedExpressOrders.length} pedidos Express entregados.`);
 
 
         // 3. Buscar Pedidos de Paquetería entregados
-        // Campos solicitados: costoEnvio, recojo.direccion, entrega.direccion, horaRecojoEstimada, porcentPago
         console.log(`🔍 Buscando Pedidos de Paquetería entregados para driver: ${driverId} y fecha: ${date}`);
         const packageOrders = await EnvioPaquete.find({
             driverAsignado: driverId,
             fechaCreacion: { $gte: startOfDay, $lte: endOfDay }
         })
-        .select("costoEnvio recojo.direccion entrega.direccion horaRecojoEstimada porcentPago"); // Campos necesarios
+        .select("costoEnvio recojo.direccion entrega.direccion horaRecojoEstimada porcentPago");
 
         const mappedPackageOrders = packageOrders.map(order => ({
             id: order._id.toString(),
@@ -2103,19 +2106,16 @@ export const getDriverOrdersByDate = async (req, res) => {
             pickupAddress: order.recojo?.direccion || '',
             deliveryAddress: order.entrega?.direccion || '',
             estimatedPickupTime: order.horaRecojoEstimada || null,
-            porcentPago: order.porcentPago || 0, // Porcentaje de pago (ganancia driver)
-            // driverAsignado: order.driverAsignado?.toString(), // No solicitado
+            porcentPago: order.porcentPago || 0,
+            comVenta: 0, // Para paquetería, comVenta es 0 o no aplica por defecto
         }));
         completedOrders = [...completedOrders, ...mappedPackageOrders];
         console.log(`✅ Se encontraron ${mappedPackageOrders.length} pedidos de Paquetería entregados.`);
 
 
         // --- Ordenamiento Final (opcional, pero buena práctica) ---
-        // Ordenar por fecha de creación de forma descendente (más recientes primero)
         completedOrders.sort((a, b) => {
-            const dateA = a.orderDate ? new Date(a.orderDate) : new Date(0); // Para PedidoApp y Paqueteria
-            // Para Pedido Express, podrías necesitar un manejo específico de 'fecha' y 'hora'
-            // O asume que 'orderDate' se mapea a una fecha ISO completa para todos los tipos
+            const dateA = a.orderDate ? new Date(a.orderDate) : new Date(0);
             const dateB = b.orderDate ? new Date(b.orderDate) : new Date(0);
             return dateB.getTime() - dateA.getTime();
         });
@@ -2133,7 +2133,7 @@ export const getDriverOrdersByDate = async (req, res) => {
         console.error('Pila de errores:', error.stack);
         res.status(500).json({
             msg: 'Error interno del servidor al obtener pedidos para la fecha.',
-            error: error.message // Incluir el mensaje de error para depuración
+            error: error.message
         });
     }
 };
