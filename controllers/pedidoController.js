@@ -1866,7 +1866,7 @@ export const getMyAssignedOrders = async (req, res) => {
             estadoPedido: { $ne: 'entregado' } // <--- FILTRO AÑADIDO: estadoPedido no sea 'entregado'
         })
         .populate({ path: "generadoPor", select: "nombre" })
-        .populate({ path: "local", select: "nombre gps" })
+        .populate({ path: "local", select: "nombre gps direccion" })
         .select("cobrar comVenta porcentPago delivery direccion fecha hora local gps telefono detallePedido medioDePago estadoPedido createdAt generadoPor");
 
         const mappedExpressOrders = expressOrders.map(order => {
@@ -1882,6 +1882,7 @@ export const getMyAssignedOrders = async (req, res) => {
                 storeId: order.local?.[0]?._id?.toString() || null,
                 nombre: order.local?.[0]?.nombre || 'Local desconocido',
                 gps: order.local?.[0]?.gps || null,
+                direccion: order.local?.[0]?.direccion || null, // Asegúrate de que el modelo Local tenga este campo
             };
 
             return {
