@@ -556,6 +556,441 @@ const asignarMotorizado = async (req, res) => {
     }
 };
 
+//funcion nueva para asignar un motorizado para el app de flutter
+const asignarDriver = async (req, res) => {
+    const { idPedido, idDriver } = req.body;
+
+    try {
+        const pedido = await Pedido.findById(idPedido).populate('local', 'nombre');
+        if (!pedido) {
+            const error = new Error("Pedido no encontrado");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        // Validación inicial del estado del pedido
+        if (pedido.estadoPedido !== "sin asignar") {
+            const error = new Error("El pedido no está en estado 'sin asignar' para ser asignado.");
+            return res.status(400).json({ msg: error.message });
+        }
+
+        const driver = await Usuario.findById(idDriver);
+        if (!driver) {
+            const error = new Error("Usuario (motorizado) no encontrado.");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        // Validación del estado del motorizado
+        if (driver.estadoUsuario !== "libre" && driver.estadoUsuario !== "disponible") {
+            const error = new Error("El motorizado no está 'libre' o 'disponible' para recibir pedidos.");
+            return res.status(400).json({ msg: error.message });
+        }
+
+        const local = pedido.local;
+        const idTelegram = local?.idTelegram;
+
+        // Eliminar mensaje anterior de Telegram si existe
+        if (pedido.idMensajeTelegram && pedido.idTelegram) {
+            await deleteMessageWithId(pedido.idTelegram, pedido.idMensajeTelegram);
+        }
+
+        // Asignar el pedido y cambiar a estado "pendiente"
+        pedido.driver = idDriver;
+        pedido.estadoPedido = "pendiente";
+        pedido.idTelegram = idTelegram; // Asegurar que se guarda el ID de Telegram del local
+        pedido.timestampAsignacion = new Date(); // **** AÑADIDO: Guardar el timestamp de asignación ****
+
+        const pedidoGuardado = await pedido.save();
+
+        // Cambiar estado del motorizado
+        driver.estadoUsuario = "con pedido";
+        await driver.save();
+
+        // Enviar mensaje a Telegram (al local)
+        if (idTelegram) {
+            const mensajeTelegram = await sendMessageWithId(idTelegram, `🛵 Pedido *${pedido._id.toString().substring(0, 7).toUpperCase()}* asignado:\n\nHora: ${pedido.hora}\nDireccion: ${pedido.direccion}\n\nha sido asignado al motorizado *${driver.nombre}*.`);
+            pedido.idMensajeTelegram = mensajeTelegram.message_id;
+            await pedido.save();
+        } else {
+            console.error('ID de Telegram del local no disponible para el pedido', pedido._id);
+        }
+
+        // Enviar mensaje a WhatsApp (al motorizado)
+        if (driver?.telefono) {
+            const numeroWhatsApp = `51${driver.telefono}`;
+            const nombresLocales = local ? (Array.isArray(local) ? local.map(loc => loc.nombre.toUpperCase()).join(', ') : local.nombre.toUpperCase()) : 'Nombre no disponible';
+            const mensajeWhatsApp = `🛵 *¡Nuevo Pedido Asignado!* ✅\n\n*Pedido #${pedido._id.toString().substring(0, 7).toUpperCase()}*\n*Local(es):* _${nombresLocales}_\n*Hora:* ${pedido.hora}\n*Dirección:* ${pedido.direccion}\n\nPor favor, acepta el pedido en la app.`;
+            try {
+                await enviarMensajeAsignacion(numeroWhatsApp, mensajeWhatsApp);
+            } catch (error) {
+                console.error('Error al enviar mensaje de WhatsApp al motorizado:', error);
+            }
+        } else {
+            console.error('Número de teléfono del motorizado no disponible para WhatsApp:', driver?._id);
+        }
+
+        // **** AÑADIDO: Llamada a la notificación FCM ****
+        if (driver.fcmToken) { // Asume que el driver tiene un campo fcmToken
+            await sendFcmNotification(driver.fcmToken, {
+                title: '¡Nuevo Pedido Asignado!',
+                body: `Tienes un nuevo pedido de ${local?.nombre || 'un local'} para recoger en ${pedido.direccion}. ¡Acéptalo ahora!`,
+                data: {
+                    orderId: pedido._id.toString(),
+                    status: 'pendiente',
+                    type: 'new_assignment'
+                }
+            });
+            console.log('Notificación FCM enviada al motorizado:', driver._id);
+        } else {
+            console.warn('FCM Token no disponible para el motorizado:', driver._id);
+        }
+
+
+        // **** AÑADIDO: Programar la desasignación automática ****
+        // Puedes usar `setTimeout` para una solución simple o un paquete como `node-cron`
+        // o `agenda` para tareas más robustas y persistentes si tu app se reinicia.
+        setTimeout(async () => {
+            try {
+                const pedidoActualizado = await Pedido.findById(pedidoId);
+                // Si el pedido sigue en "pendiente" y no ha sido aceptado por nadie más
+                if (pedidoActualizado && pedidoActualizado.estadoPedido === "pendiente" && pedidoActualizado.driver?.toString() === idDriver) {
+                    console.log(`Pedido ${pedidoId} no aceptado por motorizado ${idDriver} en 90s. Liberando...`);
+                    await liberarPedidoAutomatico(pedidoId, idDriver); // Llama a la nueva función de liberación
+                }
+            } catch (err) {
+                console.error(`Error en el temporizador de desasignación para pedido ${pedidoId}:`, err);
+            }
+        }, 90 * 1000); // 90 segundos en milisegundos
+
+        res.json(pedidoGuardado);
+
+    } catch (error) {
+        console.error("Error en asignarMotorizado:", error);
+        res.status(500).json({ msg: "Error interno del servidor al asignar motorizado." });
+    }
+};
+
+const liberarPedidoAutomatico = async (pedidoId, driverId) => {
+    try {
+        const pedido = await Pedido.findById(pedidoId);
+        if (!pedido) {
+            console.warn(`Intento de liberar pedido no encontrado: ${pedidoId}`);
+            return;
+        }
+
+        // Solo liberar si el estado sigue siendo "pendiente" y el driver es el mismo
+        if (pedido.estadoPedido !== "pendiente" || pedido.driver?.toString() !== driverId) {
+            console.log(`Pedido ${pedidoId} ya no está en estado 'pendiente' o el driver ha cambiado. No se libera automáticamente.`);
+            return;
+        }
+
+        const driver = await Usuario.findById(driverId);
+        if (!driver) {
+            console.warn(`Motorizado no encontrado para liberación automática de pedido ${pedidoId}: ${driverId}`);
+        }
+
+        // Eliminar mensaje anterior de Telegram si existe
+        if (pedido.idMensajeTelegram && pedido.idTelegram) {
+            try {
+                await deleteMessageWithId(pedido.idTelegram, pedido.idMensajeTelegram);
+            } catch (error) {
+                console.warn(`Error al eliminar mensaje de Telegram durante liberación automática para pedido ${pedidoId}:`, error.message);
+            }
+        }
+
+        // Liberar el pedido
+        pedido.driver = undefined;
+        pedido.estadoPedido = "sin asignar"; // Vuelve a "sin asignar"
+        await pedido.save();
+
+        // Actualizar estado del motorizado
+        if (driver) {
+            driver.estadoUsuario = "disponible"; // Cambia a "disponible"
+            await driver.save();
+        }
+
+        // Enviar mensaje a Telegram (al local)
+        const local = await Local.findById(pedido.local).select("idTelegram");
+        const idTelegramLocal = local?.idTelegram || -4112441362; // Usar ID del local o un ID global de alerta
+        if (idTelegramLocal) {
+            const mensaje = `⏳ Pedido *${pedido._id.toString().substring(0, 7).toUpperCase()}* liberado automáticamente:\n\nHora: ${pedido.hora}\nDirección: ${pedido.direccion}\n\nEl motorizado *${driver ? driver.nombre : 'asignado previamente'}* no aceptó a tiempo.`;
+            try {
+                const telegramResponse = await sendMessageWithId(idTelegramLocal, mensaje);
+                // Si quieres guardar el ID del mensaje de liberación en el pedido, hazlo aquí:
+                // pedido.idMensajeTelegram = telegramResponse.message_id;
+                // await pedido.save();
+            } catch (error) {
+                console.error(`Error enviando mensaje de liberación automática de Telegram para pedido ${pedidoId}:`, error);
+            }
+        }
+
+        // (Opcional) Notificación FCM al motorizado que no aceptó
+        if (driver && driver.fcmToken) {
+            await sendFcmNotification(driver.fcmToken, {
+                title: 'Pedido Liberado',
+                body: `El pedido ${pedido._id.toString().substring(0, 7).toUpperCase()} ha sido liberado porque no fue aceptado a tiempo.`,
+                data: {
+                    orderId: pedido._id.toString(),
+                    status: 'sin asignar',
+                    type: 'auto_unassigned'
+                }
+            });
+            console.log(`Notificación FCM enviada por liberación automática al motorizado: ${driver._id}`);
+        }
+
+        console.log(`Pedido ${pedidoId} liberado automáticamente y motorizado ${driverId} puesto en 'disponible'.`);
+
+    } catch (error) {
+        console.error(`Error en liberarPedidoAutomatico para pedido ${pedidoId}:`, error);
+    }
+};
+
+const liberarPedidoPorDriver = async (req, res) => {
+    const { id: pedidoId } = req.params;
+    const { driver: driverId } = req.body; // El driver que está liberando el pedido
+
+    try {
+        const pedido = await Pedido.findById(pedidoId);
+        if (!pedido) {
+            const error = new Error("Pedido no encontrado");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        // Validación: Solo el driver asignado puede liberar el pedido, y no puede estar entregado/cancelado
+        if (pedido.driver?.toString() !== driverId || ['entregado', 'cancelado'].includes(pedido.estadoPedido)) {
+            const error = new Error("No puedes liberar este pedido en su estado actual o no estás asignado a él.");
+            return res.status(403).json({ msg: error.message });
+        }
+
+        const driver = await Usuario.findById(driverId).select("nombre");
+        if (!driver) {
+            const error = new Error("Motorizado no encontrado.");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        // Eliminar mensaje anterior de Telegram si existe
+        if (pedido.idMensajeTelegram && pedido.idTelegram) {
+            try {
+                await deleteMessageWithId(pedido.idTelegram, pedido.idMensajeTelegram);
+            } catch (error) {
+                console.warn(`Error al eliminar mensaje de Telegram durante liberación manual para pedido ${pedidoId}:`, error.message);
+            }
+        }
+
+        // Liberar el pedido
+        pedido.driver = undefined;
+        pedido.estadoPedido = "sin asignar"; // Vuelve a "sin asignar"
+        const pedidoGuardado = await pedido.save();
+
+        // Actualizar estado del motorizado
+        driver.estadoUsuario = "disponible"; // Cambia a "disponible"
+        await driver.save();
+
+        // Enviar mensaje a Telegram (al local)
+        const local = await Local.findById(pedido.local).select("idTelegram");
+        const idTelegramLocal = local?.idTelegram || -4112441362; // O usa una variable de entorno para el chat global
+        if (idTelegramLocal) {
+            const mensaje = `🔄 Pedido *${pedido._id.toString().substring(0, 7).toUpperCase()}* liberado manualmente:\n\nHora: ${pedido.hora}\nDirección: ${pedido.direccion}\n\nHa sido liberado por *${driver.nombre}*.`;
+            try {
+                const telegramResponse = await sendMessageWithId(idTelegramLocal, mensaje);
+                // Si quieres guardar el ID del mensaje de liberación en el pedido, hazlo aquí:
+                // pedido.idMensajeTelegram = telegramResponse.message_id;
+                // await pedido.save();
+            } catch (error) {
+                console.error(`Error enviando mensaje de liberación manual de Telegram para pedido ${pedidoId}:`, error);
+            }
+        }
+
+        // (Opcional) Notificación FCM al motorizado que liberó o al administrador
+        // if (driver.fcmToken) { ... }
+
+        res.json(pedidoGuardado);
+
+    } catch (error) {
+        console.error("Error en liberarPedido:", error);
+        res.status(500).json({ msg: "Error interno del servidor." });
+    }
+};
+
+const marcarPedidoRecogidoPorDriver = async (req, res) => {
+    const { id: pedidoId } = req.params;
+    const { driver: driverId } = req.body; // Asume que el driverId viene en el body
+
+    try {
+        const pedido = await Pedido.findById(pedidoId);
+        if (!pedido) {
+            const error = new Error("Pedido no encontrado");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        // Validación: debe estar "en local" y asignado a este driver
+        if (pedido.estadoPedido !== "en local" || pedido.driver?.toString() !== driverId) {
+            const error = new Error("El pedido no está en estado 'en local' o no está asignado a este motorizado.");
+            return res.status(400).json({ msg: error.message });
+        }
+
+        // Eliminar mensaje anterior de Telegram si existe
+        if (pedido.idMensajeTelegram && pedido.idTelegram) {
+            try {
+                await deleteMessageWithId(pedido.idTelegram, pedido.idMensajeTelegram);
+            } catch (error) {
+                if (error.response?.error_code === 400) {
+                    console.warn("No se pudo eliminar el mensaje (quizás ya expiró o fue eliminado): " + error.response.description);
+                } else {
+                    console.error("Error eliminando el mensaje: ", error);
+                }
+            }
+        }
+
+        pedido.estadoPedido = "recogido";
+        pedido.horaRecojo = new Date().toISOString();
+        const pedidoGuardado = await pedido.save();
+
+        // Enviar nuevo mensaje a Telegram (al local)
+        if (pedido.idTelegram) {
+            try {
+                const mensaje = await sendMessageWithId(
+                    pedido.idTelegram,
+                    `📦 Pedido *${pedido._id.toString().substring(0, 7).toUpperCase()}* recogido:\n\nHora: ${pedido.hora}\nDireccion: ${pedido.direccion}\n\nestá en camino a la entrega.`
+                );
+                pedido.idMensajeTelegram = mensaje.message_id; // Guardar nuevo ID del mensaje
+                await pedido.save();
+            } catch (error) {
+                console.error("Error enviando el mensaje de Telegram 'recogido': ", error);
+            }
+        } else {
+            console.error("Chat ID is missing for sending the message for pedido: ", pedidoId);
+        }
+
+        res.json(pedidoGuardado);
+    } catch (error) {
+        console.error("Error en marcarPedidoRecogido:", error);
+        res.status(500).json({ msg: "Error interno del servidor" });
+    }
+};
+
+const marcarPedidoEnLocalPorDriver = async (req, res) => {
+    const { id: pedidoId } = req.params;
+    const { driver: driverId } = req.body; // Asume que el driverId viene en el body
+
+    try {
+        const pedido = await Pedido.findById(pedidoId);
+        if (!pedido) {
+            const error = new Error("Pedido no encontrado");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        // Validación: debe estar "aceptado" y asignado a este driver
+        if (pedido.estadoPedido !== "aceptado" || pedido.driver?.toString() !== driverId) {
+            const error = new Error("El pedido no está en estado 'aceptado' o no está asignado a este motorizado.");
+            return res.status(400).json({ msg: error.message });
+        }
+
+        // Intentar eliminar el mensaje anterior
+        if (pedido.idMensajeTelegram && pedido.idTelegram) {
+            try {
+                await deleteMessageWithId(pedido.idTelegram, pedido.idMensajeTelegram);
+            } catch (error) {
+                if (error.response?.error_code === 400) {
+                    console.warn("No se pudo eliminar el mensaje (quizás ya expiró o fue eliminado): " + error.response.description);
+                } else {
+                    console.error("Error eliminando el mensaje: ", error);
+                }
+            }
+        }
+
+        // Actualizar el estado del pedido
+        pedido.estadoPedido = "en local";
+        pedido.horaLlegadaLocal = new Date().toISOString();
+        const pedidoGuardado = await pedido.save();
+
+        // Enviar nuevo mensaje
+        if (pedido.idTelegram) {
+            try {
+                const mensaje = await sendMessageWithId(
+                    pedido.idTelegram,
+                    `📍Pedido *${pedido._id.toString().substring(0, 7).toUpperCase()}* en espera:\n\nHora: ${pedido.hora}\nDireccion: ${pedido.direccion}\n\nestá esperando en el local.`
+                );
+                pedido.idMensajeTelegram = mensaje.message_id; // Guardar nuevo ID del mensaje
+                await pedido.save();
+            } catch (error) {
+                console.error("Error enviando el mensaje de Telegram 'en local': ", error);
+            }
+        } else {
+            console.error("Chat ID is missing for sending the message for pedido: ", pedidoId);
+        }
+
+        res.json(pedidoGuardado);
+    } catch (error) {
+        console.error("Error en marcarPedidoEnLocal: ", error);
+        res.status(500).json({ msg: "Error interno del servidor" });
+    }
+};
+
+const aceptarPedidoPorDriver = async (req, res) => {
+    const { id: pedidoId } = req.params;
+    const { driver: driverId } = req.body; // Asumiendo que el driverId viene en el body
+
+    try {
+        const pedido = await Pedido.findById(pedidoId);
+        if (!pedido) {
+            const error = new Error("Pedido no encontrado");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        // Validación crucial: el pedido debe estar "pendiente" y asignado a este driver
+        if (pedido.estadoPedido !== "pendiente" || pedido.driver?.toString() !== driverId) {
+            const error = new Error("El pedido no está en estado 'pendiente' o no está asignado a este motorizado.");
+            return res.status(400).json({ msg: error.message });
+        }
+
+        const driver = await Usuario.findById(driverId).select("nombre"); // Obtener nombre para Telegram
+        if (!driver) {
+            const error = new Error("Motorizado no encontrado.");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        // Si ya había un mensaje de asignación en Telegram, intentar eliminarlo
+        if (pedido.idMensajeTelegram && pedido.idTelegram) {
+            try {
+                await deleteMessageWithId(pedido.idTelegram, pedido.idMensajeTelegram);
+            } catch (error) {
+                 if (error.response?.error_code === 400) {
+                    console.warn("No se pudo eliminar el mensaje de Telegram (quizás ya expiró o fue eliminado): " + error.response.description);
+                 } else {
+                    console.error("Error eliminando el mensaje de Telegram durante aceptación: ", error);
+                 }
+            }
+        }
+
+        // Actualizar estado del pedido
+        pedido.estadoPedido = "aceptado";
+        const pedidoGuardado = await pedido.save();
+
+        // El estado del motorizado ya es "con pedido", no necesita cambiar aquí
+
+        // Enviar mensaje de confirmación a Telegram (al local)
+        if (pedido.idTelegram) {
+            const mensaje = `✅ Pedido *${pedido._id.toString().substring(0, 7).toUpperCase()}* aceptado:\n\nHora: ${pedido.hora}\nDireccion: ${pedido.direccion}\n\nHa sido *aceptado* por *${driver.nombre}*.`;
+            try {
+                const mensajeTelegram = await sendMessageWithId(pedido.idTelegram, mensaje);
+                pedido.idMensajeTelegram = mensajeTelegram.message_id; // Guardar nuevo ID del mensaje
+                await pedido.save();
+            } catch (error) {
+                console.error("Error enviando mensaje de Telegram de aceptación: ", error);
+            }
+        }
+
+        // (Opcional) Notificación FCM de confirmación al motorizado/cliente
+        // if (driver.fcmToken) { ... }
+
+        res.json(pedidoGuardado);
+
+    } catch (error) {
+        console.error("Error en aceptarPedido:", error);
+        res.status(500).json({ msg: "Error interno del servidor." });
+    }
+};
+
 const obtenerPedidosPorFecha = async (req, res) => {
     const { fecha } = req.body;
     const pedidos = await Pedido.find({ fecha })
@@ -575,6 +1010,206 @@ const obtenerPedidosPorFecha = async (req, res) => {
         .select("-detallePedido -gps -gpsCreacion -horaCreacion -medioDePago");
 
     res.json(pedidos);
+};
+
+const marcarPedidoEntregadoPorDriver = async (req, res) => {
+    const { id: pedidoId } = req.params;
+    const { driver: driverId } = req.body; // Asume que el driverId viene en el body
+
+    try {
+        const pedido = await Pedido.findById(pedidoId);
+        if (!pedido) {
+            const error = new Error("Pedido no encontrado");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        // Validación: debe estar "recogido" y asignado a este driver
+        if (pedido.estadoPedido !== "recogido" || pedido.driver?.toString() !== driverId) {
+            const error = new Error("El pedido no está en estado 'recogido' o no está asignado a este motorizado.");
+            return res.status(400).json({ msg: error.message });
+        }
+
+        const driver = await Usuario.findById(driverId);
+        if (!driver) {
+            const error = new Error("Motorizado no encontrado.");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        // Eliminar mensaje anterior de Telegram
+        if (pedido.idMensajeTelegram && pedido.idTelegram) {
+            try {
+                await deleteMessageWithId(pedido.idTelegram, pedido.idMensajeTelegram);
+            } catch (error) {
+                if (error.response?.error_code === 400) {
+                    console.warn("No se pudo eliminar el mensaje (quizás ya expiró o fue eliminado): " + error.response.description);
+                } else {
+                    console.error("Error eliminando el mensaje: ", error);
+                }
+            }
+        }
+
+        // Actualizar estado del pedido a entregado
+        pedido.estadoPedido = "entregado";
+        pedido.horaEntrega = new Date().toISOString();
+        const pedidoGuardado = await pedido.save();
+
+        // Actualizar estado del motorizado a "libre"
+        //driver.estadoUsuario = "libre"; // Motorizado vuelve a estar libre
+        //await driver.save();
+
+        // ID alternativo de Telegram para mensajes sin GPS (usar variable de entorno)
+        const idTelegramAlternativo = process.env.TELEGRAM_GLOBAL_CHAT_ID || -4112441362; // Asegúrate de usar una variable de entorno
+
+        let mensajeTexto;
+        if (pedido.gps && pedido.gps.trim() !== "") {
+            mensajeTexto = `✅Pedido *${pedido._id.toString().substring(0, 7).toUpperCase()}* entregado:\n\nHora: ${pedido.hora}\nDireccion: ${pedido.direccion}\n\nha sido entregado con éxito por *${driver.nombre}*.\nCoordenadas GPS: ${pedido.gps}`;
+        } else {
+            mensajeTexto = `⚠️Pedido *${pedido._id.toString().substring(0, 7).toUpperCase()}* entregado sin marcar coordenadas GPS:\n\nHora: ${pedido.hora}\nDireccion: ${pedido.direccion}.`;
+
+            // Enviar mensaje al ID alternativo para alerta de falta de GPS
+            try {
+                await sendMessageWithId(
+                    idTelegramAlternativo,
+                    `⚠️Alerta: Se entregó el pedido *${pedido._id.toString().substring(0, 7).toUpperCase()}* sin marcar coordenadas GPS:\n\nHora: ${pedido.hora}\nDireccion: ${pedido.direccion}\nDriver: *${driver.nombre}*.`
+                );
+                console.log("Mensaje de alerta de GPS enviado al ID alternativo");
+            } catch (error) {
+                console.error("Error enviando mensaje de alerta de GPS al ID alternativo: ", error);
+            }
+        }
+
+        // Enviar mensaje principal al ID de Telegram del local (si existe)
+        if (pedido.idTelegram) {
+            try {
+                const mensaje = await sendMessageWithId(pedido.idTelegram, mensajeTexto);
+                pedido.idMensajeTelegram = mensaje.message_id;
+                await pedido.save();
+            } catch (error) {
+                console.error("Error enviando mensaje de Telegram 'entregado': ", error);
+            }
+        } else {
+            console.error("ID de Telegram del local no disponible para el pedido: ", pedidoId);
+        }
+
+        // (Opcional) Notificación FCM al motorizado/cliente confirmando entrega
+        // if (driver.fcmToken) { ... }
+
+        res.json(pedidoGuardado);
+
+    } catch (error) {
+        console.error("Error en marcarPedidoEntregado:", error);
+        res.status(500).json({ msg: "Error interno del servidor" });
+    }
+};
+
+const tomarPedidoDirecto = async (req, res) => {
+    const { id: pedidoId } = req.params; // ID del pedido a tomar
+    const { driver: driverId } = req.body; // ID del motorizado que lo está tomando
+
+    try {
+        const pedido = await Pedido.findById(pedidoId).populate('local', 'nombre');
+        if (!pedido) {
+            const error = new Error("Pedido no encontrado.");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        // --- VALIDACIÓN CLAVE ---
+        // 1. El pedido debe estar en estado "sin asignar" o "sin asignar2"
+        if (pedido.estadoPedido !== "sin asignar" ) {
+            const error = new Error(`El pedido no está disponible para ser tomado directamente. Estado actual: ${pedido.estadoPedido}.`);
+            return res.status(400).json({ msg: error.message });
+        }
+        // 2. No debe tener un motorizado asignado (para evitar conflictos si el estado no se actualizó bien)
+        if (pedido.driver) {
+             const error = new Error("El pedido ya tiene un motorizado asignado. No se puede tomar directamente.");
+             return res.status(400).json({ msg: error.message });
+        }
+
+
+        const driver = await Usuario.findById(driverId);
+        if (!driver) {
+            const error = new Error("Motorizado no encontrado.");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        // Validación del estado del motorizado (debe estar libre o disponible)
+        if (driver.estadoUsuario !== "libre" && driver.estadoUsuario !== "disponible") {
+            const error = new Error("El motorizado no está 'libre' o 'disponible' para tomar pedidos.");
+            return res.status(400).json({ msg: error.message });
+        }
+
+        const local = pedido.local;
+        const idTelegram = local?.idTelegram;
+
+        // Limpiar cualquier mensaje de Telegram antiguo si existiera
+        if (pedido.idMensajeTelegram && pedido.idTelegram) {
+            try {
+                await deleteMessageWithId(pedido.idTelegram, pedido.idMensajeTelegram);
+            } catch (error) {
+                if (error.response?.error_code === 400) {
+                    console.warn("No se pudo eliminar el mensaje de Telegram anterior (quizás ya expiró o fue eliminado): " + error.response.description);
+                } else {
+                    console.error("Error eliminando el mensaje de Telegram durante 'tomarPedidoDirecto': ", error);
+                }
+            }
+        }
+
+        // --- Actualizar el pedido ---
+        pedido.driver = driverId;
+        pedido.estadoPedido = "aceptado"; // Pasa directamente a aceptado
+        pedido.idTelegram = idTelegram; // Asegura que el ID de Telegram del local esté guardado
+        // No necesitas timestampAsignacion aquí si el motorizado lo aceptó inmediatamente
+
+        const pedidoGuardado = await pedido.save();
+
+        // --- Actualizar el estado del motorizado ---
+        driver.estadoUsuario = "con pedido";
+        await driver.save();
+
+        // --- Notificaciones ---
+
+        // Telegram al local: Pedido ACEPTADO
+        if (idTelegram) {
+            const mensajeTelegram = await sendMessageWithId(idTelegram, `✅ Pedido *${pedido._id.toString().substring(0, 7).toUpperCase()}* tomado y aceptado:\n\nHora: ${pedido.hora}\nDireccion: ${pedido.direccion}\n\nHa sido tomado y *aceptado directamente* por *${driver.nombre}*.`);
+            pedido.idMensajeTelegram = mensajeTelegram.message_id;
+            await pedido.save();
+        } else {
+            console.error('ID de Telegram del local no disponible para el pedido', pedido._id);
+        }
+
+        // WhatsApp al motorizado (opcional, ya que lo acaba de tomar en la app)
+        // Podrías enviar un mensaje de confirmación o detalles.
+        if (driver?.telefono) {
+            const numeroWhatsApp = `51${driver.telefono}`;
+            const nombresLocales = local ? (Array.isArray(local) ? local.map(loc => loc.nombre.toUpperCase()).join(', ') : local.nombre.toUpperCase()) : 'Nombre no disponible';
+            const mensajeWhatsApp = `🎉 *¡Pedido Aceptado!* ✅\n\n*Pedido #${pedido._id.toString().substring(0, 7).toUpperCase()}*\n*Local(es):* _${nombresLocales}_\n*Hora:* ${pedido.hora}\n*Dirección:* ${pedido.direccion}\n\n¡En camino al recojo!`;
+            try {
+                await enviarMensajeAsignacion(numeroWhatsApp, mensajeWhatsApp); // Reutiliza tu función de envío
+            } catch (error) {
+                console.error('Error al enviar mensaje de WhatsApp al motorizado por toma directa:', error);
+            }
+        }
+
+        // FCM al motorizado (opcional, ya lo tomó en la app, pero útil para confirmar)
+        if (driver.fcmToken) {
+            await sendFcmNotification(driver.fcmToken, {
+                title: 'Pedido Aceptado con Éxito',
+                body: `Has tomado y aceptado el pedido de ${local?.nombre || 'un local'} para recoger en ${pedido.direccion}.`,
+                data: {
+                    orderId: pedido._id.toString(),
+                    status: 'aceptado',
+                    type: 'direct_accept_confirmation'
+                }
+            });
+            console.log('Notificación FCM de aceptación directa enviada al motorizado:', driver._id);
+        }
+
+        res.json(pedidoGuardado);
+
+    } catch (error) {
+        console.error("Error en tomarPedidoDirecto:", error);
+        res.status(500).json({ msg: "Error interno del servidor al tomar el pedido directamente." });
+    }
 };
 
 const obtenerPedidosPorTelefonoConGps = async (req, res) => {
@@ -1790,6 +2425,204 @@ export const acceptPackageOrder = async (req, res) => {
     }
 };
 
+// export const getMyAssignedOrders = async (req, res) => {
+//     // El ID del driver se obtiene de req.usuario._id
+//     // Asume que req.usuario es establecido por un middleware de autenticación (ej. JWT)
+//     const driverId = req.usuario._id; 
+
+//     if (!driverId) {
+//         console.error(`❌ Error: No se encontró el ID del driver en la solicitud (req.usuario._id).`);
+//         return res.status(401).json({
+//             msg: 'No autorizado: ID de driver no disponible.',
+//         });
+//     }
+
+//     try {
+//         console.log(`🚀 Iniciando búsqueda de pedidos asignados para driver: ${driverId}`);
+//         let assignedOrders = [];
+
+//         // 1. Buscar Pedidos de App asignados (campo: driver, estadoPedido distinto de 'entregado')
+//         console.log(`🔍 Buscando Pedidos de App para driver: ${driverId} y estado != 'entregado'`);
+//         const appOrders = await PedidoApp.find({
+//             driver: driverId,
+//             estadoPedido: { $ne: 'entregado' } // <--- FILTRO AÑADIDO: estadoPedido no sea 'entregado'
+//         })
+//         .populate('userId', 'nombre telefono')
+//         .populate({
+//             path: 'storeDetails.storeId',
+//             select: 'nombre gps'
+//         })
+//         .select("numeroPedido subtotal porcentPago deliveryCost totalAmount notes orderItems orderDate deliveryAddress storeDetails paymentMethod estadoPedido estadoTienda createdAt");
+
+//         const mappedAppOrders = appOrders.map(order => ({
+//             id: order._id.toString(),
+//             tipoPedido: 'app',
+//             estadoPedido: order.estadoPedido,
+//             estadoTienda: order.estadoTienda,
+//             clientName: order.userId?.nombre || 'N/A',
+//             clientPhone: order.userId?.telefono || 'N/A',
+//             deliveryCost: order.deliveryCost || 0,
+//             medioDePago: order.paymentMethod || 'efectivo',
+//             totalAmount: order.totalAmount || 0,
+//             notes: order.notes || '',
+//             orderItems: order.orderItems?.map(item => ({
+//                 productId: item.productId?.toString() || '',
+//                 quantity: item.quantity || 0,
+//                 unitPrice: item.unitPrice || 0,
+//                 totalItemPrice: item.totalItemPrice || 0,
+//                 selectedOptions: item.selectedOptions || [],
+//             })) || [],
+//             orderDate: order.orderDate?.toISOString() || new Date(0).toISOString(),
+//             deliveryAddressDetails: {
+//                 name: order.deliveryAddress?.name || null, 
+//                 fullAddress: order.deliveryAddress?.fullAddress || '', 
+//                 gps: order.deliveryAddress?.gps || '0,0',
+//                 reference: order.deliveryAddress?.reference || null, 
+//             },
+//             storeDetails: {
+//                 storeId: order.storeDetails?.storeId?._id?.toString() || null,
+//                 nombre: order.storeDetails?.storeId?.nombre || 'Tienda Desconocida',
+//                 gps: order.storeDetails?.storeId?.gps || null,
+//             },
+//             createdAt: order.createdAt?.toISOString() || new Date(0).toISOString(),
+//             numeroPedido: order.numeroPedido || null,
+//             subTotal: order.subtotal || 0, 
+//             porcentPago: order.porcentPago || 0,
+//             driver: order.driver?.toString(),
+//         }));
+//         assignedOrders = [...assignedOrders, ...mappedAppOrders];
+//         console.log(`✅ Se encontraron ${mappedAppOrders.length} pedidos de App asignados (no 'entregado').`);
+
+
+//         // 2. Buscar Pedidos Express asignados (campo: driver, estadoPedido distinto de 'entregado')
+//         console.log(`🔍 Buscando Pedidos Express para driver: ${driverId} y estado != 'entregado'`);
+//         const expressOrders = await Pedido.find({
+//             driver: driverId,
+//             estadoPedido: { $ne: 'entregado' } // <--- FILTRO AÑADIDO: estadoPedido no sea 'entregado'
+//         })
+//         .populate({ path: "generadoPor", select: "nombre" })
+//         .populate({ path: "local", select: "nombre gps direccion" })
+//         .select("cobrar comVenta porcentPago delivery direccion fecha hora local gps telefono detallePedido medioDePago estadoPedido createdAt generadoPor");
+
+//         const mappedExpressOrders = expressOrders.map(order => {
+//             const clientPhone = order.telefono || 'N/A';
+//             const deliveryCost = parseFloat(order.delivery || '0');
+//             const cobrar = parseFloat(order.cobrar || '0');
+//             const comVenta = parseFloat(order.comVenta || '0');
+//             const porcentPago = parseFloat(order.porcentPago || '0');
+//             const generadoPorNombre = order.generadoPor?.nombre || 'N/A';
+
+//             const orderDateISO = new Date(`${order.fecha}T${order.hora}:00.000Z`).toISOString();
+//             const storeDetails = {
+//                 storeId: order.local?.[0]?._id?.toString() || null,
+//                 nombre: order.local?.[0]?.nombre || 'Local desconocido',
+//                 gps: order.local?.[0]?.gps || null,
+//                 direccion: order.local?.[0]?.direccion || null, // Asegúrate de que el modelo Local tenga este campo
+//             };
+
+//             return {
+//                 id: order._id.toString(),
+//                 tipoPedido: 'express',
+//                 estadoPedido: order.estadoPedido, 
+//                 clientName: 'Cliente Express',
+//                 clientPhone: clientPhone,
+//                 deliveryCost: deliveryCost,
+//                 medioDePago: order.medioDePago,
+//                 detail: order.detallePedido || '',
+//                 orderItems: [],
+//                 orderDate: orderDateISO,
+//                 deliveryAddressDetails: {
+//                     fullAddress: order.direccion || '',
+//                     gps: order.gps || '0,0',
+//                     name: null,
+//                     reference: null,
+//                 },
+//                 storeDetails: storeDetails,
+//                 createdAt: order.createdAt?.toISOString() || new Date(0).toISOString(),
+//                 cobrar: cobrar,
+//                 comVenta: comVenta,
+//                 porcentPago: porcentPago,
+//                 generadoPorName: generadoPorNombre,
+//                 driver: order.driver?.toString(),
+//             };
+//         });
+//         assignedOrders = [...assignedOrders, ...mappedExpressOrders];
+//         console.log(`✅ Se encontraron ${mappedExpressOrders.length} pedidos Express asignados (no 'entregado').`);
+
+
+//         // 3. Buscar Pedidos de Paquetería asignados (campo: driverAsignado, estadoPedido distinto de 'entregado')
+//         console.log(`🔍 Buscando Pedidos de Paquetería para driver: ${driverId} y estado != 'entregado'`);
+//         const packageOrders = await EnvioPaquete.find({
+//             driverAsignado: driverId,
+//             estadoPedido: { $ne: 'entregado' } // <--- FILTRO AÑADIDO: estadoPedido no sea 'entregado'
+//         }) 
+//         .populate('cliente', 'nombre telefono')
+//         .select("costoEnvio distanciaEnvioKm medioDePago quienPagaEnvio horaRecojoEstimada notasPedido recojo entrega fechaCreacion estadoPedido createdAt");
+
+//         const mappedPackageOrders = packageOrders.map(order => ({
+//             id: order._id.toString(),
+//             tipoPedido: 'paqueteria',
+//             estadoPedido: order.estadoPedido, 
+//             clientName: order.cliente?.nombre || 'N/A',
+//             clientPhone: order.cliente?.telefono || 'N/A',
+//             deliveryCost: order.costoEnvio || 0,
+//             distanceInKm: order.distanciaEnvioKm || 0,
+//             medioDePago: order.medioDePago || 'efectivo',
+//             porcentPago: order.porcentPago || 0.8,
+//             recojoDetails: {
+//                 direccion: order.recojo?.direccion || '',
+//                 referencia: order.recojo?.referencia || null,
+//                 telefonoContacto: order.recojo?.telefonoContacto || null,
+//                 detallesAdicionales: order.recojo?.detallesAdicionales || null,
+//                 gps: (order.recojo?.gps?.latitude && order.recojo?.gps?.longitude)
+//                     ? `${order.recojo.gps.latitude},${order.recojo.gps.longitude}`
+//                     : '0,0',
+//             },
+//             deliveryAddressDetails: {
+//                 fullAddress: order.entrega?.direccion || '',
+//                 gps: (order.entrega?.gps?.latitude && order.entrega?.gps?.longitude)
+//                     ? `${order.entrega.gps.latitude},${order.entrega.gps.longitude}`
+//                     : '0,0',
+//                 name: null,
+//                 reference: order.entrega?.referencia || null,
+//                 telefonoContacto: order.entrega?.telefonoContacto || null,
+//                 detallesAdicionales: order.entrega?.detallesAdicionales || null,
+//             },
+//             notes: order.notasPedido || '', 
+//             orderDate: order.fechaCreacion?.toISOString() || new Date(0).toISOString(),
+//             horaRecojoEstimada: order.horaRecojoEstimada || null,
+//             createdAt: order.createdAt?.toISOString() || new Date(0).toISOString(),
+//             driverAsignado: order.driverAsignado?.toString(),
+//         }));
+//         assignedOrders = [...assignedOrders, ...mappedPackageOrders];
+//         console.log(`✅ Se encontraron ${mappedPackageOrders.length} pedidos de Paquetería asignados (no 'entregado').`);
+
+
+//         // --- Ordenamiento Final ---
+//         assignedOrders.sort((a, b) => {
+//             const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+//             const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+//             return dateB.getTime() - dateA.getTime(); // Más recientes primero
+//         });
+
+//         console.log(`Total de pedidos asignados encontrados para driver ${driverId}: ${assignedOrders.length}`);
+//         console.log(`--- FIN DE BÚSQUEDA DE PEDIDOS ASIGNADOS ---`);
+
+//         res.status(200).json({
+//             msg: "Pedidos asignados encontrados.",
+//             pedidos: assignedOrders
+//         });
+
+//     } catch (error) {
+//         console.error(`❌ Error al obtener pedidos asignados para driver ${driverId}: ${error.message}`);
+//         console.error('Pila de errores:', error.stack); 
+//         res.status(500).json({
+//             msg: 'Error interno del servidor al obtener pedidos asignados.'
+//         });
+//     }
+// };
+
+
 export const getMyAssignedOrders = async (req, res) => {
     // El ID del driver se obtiene de req.usuario._id
     // Asume que req.usuario es establecido por un middleware de autenticación (ej. JWT)
@@ -1810,9 +2643,11 @@ export const getMyAssignedOrders = async (req, res) => {
         console.log(`🔍 Buscando Pedidos de App para driver: ${driverId} y estado != 'entregado'`);
         const appOrders = await PedidoApp.find({
             driver: driverId,
-            estadoPedido: { $ne: 'entregado' } // <--- FILTRO AÑADIDO: estadoPedido no sea 'entregado'
+            estadoPedido: { $ne: 'entregado' } 
         })
         .populate('userId', 'nombre telefono')
+        // *** CAMBIO AQUI: Popula el productId dentro de orderItems ***
+        .populate('orderItems.productId') 
         .populate({
             path: 'storeDetails.storeId',
             select: 'nombre gps'
@@ -1831,7 +2666,10 @@ export const getMyAssignedOrders = async (req, res) => {
             totalAmount: order.totalAmount || 0,
             notes: order.notes || '',
             orderItems: order.orderItems?.map(item => ({
-                productId: item.productId?.toString() || '',
+                // Accede a los campos populados de productId aquí, por ejemplo:
+                productId: item.productId?._id?.toString() || '',
+                productName: item.productId?.nombre || 'N/A', // Asume que el producto tiene un campo 'nombre'
+                productPrice: item.productId?.precio || 0, // Asume que el producto tiene un campo 'precio'
                 quantity: item.quantity || 0,
                 unitPrice: item.unitPrice || 0,
                 totalItemPrice: item.totalItemPrice || 0,
@@ -1863,8 +2701,13 @@ export const getMyAssignedOrders = async (req, res) => {
         console.log(`🔍 Buscando Pedidos Express para driver: ${driverId} y estado != 'entregado'`);
         const expressOrders = await Pedido.find({
             driver: driverId,
-            estadoPedido: { $ne: 'entregado' } // <--- FILTRO AÑADIDO: estadoPedido no sea 'entregado'
+            estadoPedido: { $ne: 'entregado' } 
         })
+        // *** CAMBIO AQUI: Popula el productId dentro de orderItems si existe en Pedido ***
+        // Nota: Tu modelo 'Pedido' actual no parece tener 'orderItems' como en PedidoApp.
+        // Si 'detallePedido' contiene IDs de productos, necesitarías una lógica diferente aquí.
+        // Si Pedido también tiene 'orderItems' referenciando productos, aplica esto.
+        // .populate('orderItems.productId') 
         .populate({ path: "generadoPor", select: "nombre" })
         .populate({ path: "local", select: "nombre gps direccion" })
         .select("cobrar comVenta porcentPago delivery direccion fecha hora local gps telefono detallePedido medioDePago estadoPedido createdAt generadoPor");
@@ -1882,7 +2725,7 @@ export const getMyAssignedOrders = async (req, res) => {
                 storeId: order.local?.[0]?._id?.toString() || null,
                 nombre: order.local?.[0]?.nombre || 'Local desconocido',
                 gps: order.local?.[0]?.gps || null,
-                direccion: order.local?.[0]?.direccion || null, // Asegúrate de que el modelo Local tenga este campo
+                direccion: order.local?.[0]?.direccion || null, 
             };
 
             return {
@@ -1894,7 +2737,16 @@ export const getMyAssignedOrders = async (req, res) => {
                 deliveryCost: deliveryCost,
                 medioDePago: order.medioDePago,
                 detail: order.detallePedido || '',
-                orderItems: [],
+                // Si PedidoExpress tuviera orderItems, los procesarías aquí de forma similar a PedidoApp
+                orderItems: order.orderItems?.map(item => ({
+                     productId: item.productId?._id?.toString() || '',
+                     productName: item.productId?.nombre || 'N/A', 
+                     productPrice: item.productId?.precio || 0,
+                     quantity: item.quantity || 0,
+                     unitPrice: item.unitPrice || 0,
+                     totalItemPrice: item.totalItemPrice || 0,
+                     selectedOptions: item.selectedOptions || [],
+                })) || [],
                 orderDate: orderDateISO,
                 deliveryAddressDetails: {
                     fullAddress: order.direccion || '',
@@ -1919,7 +2771,7 @@ export const getMyAssignedOrders = async (req, res) => {
         console.log(`🔍 Buscando Pedidos de Paquetería para driver: ${driverId} y estado != 'entregado'`);
         const packageOrders = await EnvioPaquete.find({
             driverAsignado: driverId,
-            estadoPedido: { $ne: 'entregado' } // <--- FILTRO AÑADIDO: estadoPedido no sea 'entregado'
+            estadoPedido: { $ne: 'entregado' } 
         }) 
         .populate('cliente', 'nombre telefono')
         .select("costoEnvio distanciaEnvioKm medioDePago quienPagaEnvio horaRecojoEstimada notasPedido recojo entrega fechaCreacion estadoPedido createdAt");
@@ -1986,7 +2838,6 @@ export const getMyAssignedOrders = async (req, res) => {
         });
     }
 };
-
 export const getDriverOrdersByDate = async (req, res) => {
     // El ID del driver se obtiene de req.usuario._id, establecido por un middleware de autenticación (ej. JWT)
     const driverId = req.usuario._id;
@@ -2185,5 +3036,12 @@ export {
     obtenerPedidoPorTelefono,
     calcularPrecioDelivery,
     obtenerLocalPorTelefono,
-    calcularPrecioDeliveryDos
+    calcularPrecioDeliveryDos,
+    asignarDriver,
+    liberarPedidoPorDriver,
+    marcarPedidoRecogidoPorDriver,
+    marcarPedidoEnLocalPorDriver,
+    aceptarPedidoPorDriver,
+    marcarPedidoEntregadoPorDriver,
+    tomarPedidoDirecto
 };
