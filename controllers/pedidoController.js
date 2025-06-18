@@ -2670,6 +2670,7 @@ export const getMyAssignedOrders = async (req, res) => {
                 productId: item.productId?._id?.toString() || '',
                 productName: item.productId?.nombre || 'N/A', // Asume que el producto tiene un campo 'nombre'
                 productPrice: item.productId?.precio || 0, // Asume que el producto tiene un campo 'precio'
+                category:item.productId?.categoria || 'N/A', // Asume que el producto tiene un campo 'category'
                 quantity: item.quantity || 0,
                 unitPrice: item.unitPrice || 0,
                 totalItemPrice: item.totalItemPrice || 0,
