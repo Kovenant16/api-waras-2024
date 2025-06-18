@@ -2665,6 +2665,7 @@ export const getMyAssignedOrders = async (req, res) => {
             medioDePago: order.paymentMethod || 'efectivo',
             totalAmount: order.totalAmount || 0,
             notes: order.notes || '',
+            comVenta: order.orderItems?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0,
             orderItems: order.orderItems?.map(item => ({
                 // Accede a los campos populados de productId aquí, por ejemplo:
                 productId: item.productId?._id?.toString() || '',
