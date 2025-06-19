@@ -1102,29 +1102,35 @@ const marcarPedidoEntregadoPorDriver = async (req, res) => {
     }
 };
 
-const tomarPedidoDirecto = async (req, res) => {
+const tomarPedidoExpressDirecto = async (req, res) => {
     const { id: pedidoId } = req.params; // ID del pedido a tomar
-    const { driver: driverId } = req.body; // ID del motorizado que lo está tomando
+    const driverId = req.usuario._id; // Asume que el ID del driver viene del token JWT autenticado
+
+    if (!driverId) {
+        console.log(`Error: No se encontró el ID del driver en la solicitud para el pedido ${pedidoId}`);
+        return res.status(401).json({
+            msg: 'No autorizado: ID de driver no disponible.',
+        });
+    }
 
     try {
-        const pedido = await Pedido.findById(pedidoId).populate('local', 'nombre');
+        const pedido = await Pedido.findById(pedidoId); // Ya no necesitamos 'local' para Telegram/WhatsApp
         if (!pedido) {
             const error = new Error("Pedido no encontrado.");
             return res.status(404).json({ msg: error.message });
         }
 
         // --- VALIDACIÓN CLAVE ---
-        // 1. El pedido debe estar en estado "sin asignar" o "sin asignar2"
-        if (pedido.estadoPedido !== "sin asignar" ) {
+        // El pedido debe estar en estado "sin asignar"
+        if (pedido.estadoPedido !== "sin asignar") {
             const error = new Error(`El pedido no está disponible para ser tomado directamente. Estado actual: ${pedido.estadoPedido}.`);
             return res.status(400).json({ msg: error.message });
         }
-        // 2. No debe tener un motorizado asignado (para evitar conflictos si el estado no se actualizó bien)
+        // No debe tener un motorizado asignado (para evitar conflictos si el estado no se actualizó bien)
         if (pedido.driver) {
-             const error = new Error("El pedido ya tiene un motorizado asignado. No se puede tomar directamente.");
-             return res.status(400).json({ msg: error.message });
+            const error = new Error("El pedido ya ha sido tomado por otro driver.");
+            return res.status(400).json({ msg: error.message });
         }
-
 
         const driver = await Usuario.findById(driverId);
         if (!driver) {
@@ -1132,33 +1138,14 @@ const tomarPedidoDirecto = async (req, res) => {
             return res.status(404).json({ msg: error.message });
         }
 
-        // Validación del estado del motorizado (debe estar libre o disponible)
-        if (driver.estadoUsuario !== "libre" && driver.estadoUsuario !== "disponible") {
-            const error = new Error("El motorizado no está 'libre' o 'disponible' para tomar pedidos.");
-            return res.status(400).json({ msg: error.message });
-        }
-
-        const local = pedido.local;
-        const idTelegram = local?.idTelegram;
-
-        // Limpiar cualquier mensaje de Telegram antiguo si existiera
-        if (pedido.idMensajeTelegram && pedido.idTelegram) {
-            try {
-                await deleteMessageWithId(pedido.idTelegram, pedido.idMensajeTelegram);
-            } catch (error) {
-                if (error.response?.error_code === 400) {
-                    console.warn("No se pudo eliminar el mensaje de Telegram anterior (quizás ya expiró o fue eliminado): " + error.response.description);
-                } else {
-                    console.error("Error eliminando el mensaje de Telegram durante 'tomarPedidoDirecto': ", error);
-                }
-            }
-        }
+        // --- Modificación: Ya no se valida el estado del motorizado (libre/disponible) ---
+        // El motorizado puede tomar el pedido sin importar su estado actual,
+        // su estado se actualizará a "con pedido" si la operación es exitosa.
 
         // --- Actualizar el pedido ---
         pedido.driver = driverId;
         pedido.estadoPedido = "aceptado"; // Pasa directamente a aceptado
-        pedido.idTelegram = idTelegram; // Asegura que el ID de Telegram del local esté guardado
-        // No necesitas timestampAsignacion aquí si el motorizado lo aceptó inmediatamente
+        // Ya no necesitamos guardar idTelegram aquí, ya que no se envían mensajes de Telegram
 
         const pedidoGuardado = await pedido.save();
 
@@ -1166,49 +1153,17 @@ const tomarPedidoDirecto = async (req, res) => {
         driver.estadoUsuario = "con pedido";
         await driver.save();
 
-        // --- Notificaciones ---
-
-        // Telegram al local: Pedido ACEPTADO
-        if (idTelegram) {
-            const mensajeTelegram = await sendMessageWithId(idTelegram, `✅ Pedido *${pedido._id.toString().substring(0, 7).toUpperCase()}* tomado y aceptado:\n\nHora: ${pedido.hora}\nDireccion: ${pedido.direccion}\n\nHa sido tomado y *aceptado directamente* por *${driver.nombre}*.`);
-            pedido.idMensajeTelegram = mensajeTelegram.message_id;
-            await pedido.save();
-        } else {
-            console.error('ID de Telegram del local no disponible para el pedido', pedido._id);
-        }
-
-        // WhatsApp al motorizado (opcional, ya que lo acaba de tomar en la app)
-        // Podrías enviar un mensaje de confirmación o detalles.
-        if (driver?.telefono) {
-            const numeroWhatsApp = `51${driver.telefono}`;
-            const nombresLocales = local ? (Array.isArray(local) ? local.map(loc => loc.nombre.toUpperCase()).join(', ') : local.nombre.toUpperCase()) : 'Nombre no disponible';
-            const mensajeWhatsApp = `🎉 *¡Pedido Aceptado!* ✅\n\n*Pedido #${pedido._id.toString().substring(0, 7).toUpperCase()}*\n*Local(es):* _${nombresLocales}_\n*Hora:* ${pedido.hora}\n*Dirección:* ${pedido.direccion}\n\n¡En camino al recojo!`;
-            try {
-                await enviarMensajeAsignacion(numeroWhatsApp, mensajeWhatsApp); // Reutiliza tu función de envío
-            } catch (error) {
-                console.error('Error al enviar mensaje de WhatsApp al motorizado por toma directa:', error);
-            }
-        }
-
-        // FCM al motorizado (opcional, ya lo tomó en la app, pero útil para confirmar)
-        if (driver.fcmToken) {
-            await sendFcmNotification(driver.fcmToken, {
-                title: 'Pedido Aceptado con Éxito',
-                body: `Has tomado y aceptado el pedido de ${local?.nombre || 'un local'} para recoger en ${pedido.direccion}.`,
-                data: {
-                    orderId: pedido._id.toString(),
-                    status: 'aceptado',
-                    type: 'direct_accept_confirmation'
-                }
-            });
-            console.log('Notificación FCM de aceptación directa enviada al motorizado:', driver._id);
-        }
+        // --- Modificación: Se eliminan todas las notificaciones ---
+        // Ya no se envían mensajes de Telegram.
+        // Ya no se envían mensajes de WhatsApp.
+        // Ya no se envían notificaciones FCM.
 
         res.json(pedidoGuardado);
 
     } catch (error) {
-        console.error("Error en tomarPedidoDirecto:", error);
-        res.status(500).json({ msg: "Error interno del servidor al tomar el pedido directamente." });
+        console.error("Error en tomarPedidoExpressDirecto:", error);
+        // Modificación: Mensaje de error genérico en caso de fallo interno
+        res.status(500).json({ msg: "Error interno del servidor, intente nuevamente." });
     }
 };
 
@@ -2039,8 +1994,6 @@ function pointInPolygon(point, polygonPoints) {
     return inside;
 }
 
-
-
 const calcularPrecioDeliveryDos = async (req, res) => {
     const { startLocation, endLocation } = req.body;
     console.log(startLocation);
@@ -2076,8 +2029,6 @@ const calcularPrecioDeliveryDos = async (req, res) => {
         res.status(500).json({ msg: "Error al calcular el precio de delivery" });
     }
 };
-
-
 
 export const obtenerTodosLosPedidosSinDriver = async (req, res) => {
     try {
@@ -2267,7 +2218,6 @@ export const obtenerTodosLosPedidosSinDriver = async (req, res) => {
         res.status(500).json({ msg: 'Error interno del servidor al obtener pedidos.' });
     }
 };
-
 
 export const acceptAppOrder = async (req, res) => {
     const { id } = req.params; // ID del pedido a aceptar
@@ -3048,5 +2998,5 @@ export {
     marcarPedidoEnLocalPorDriver,
     aceptarPedidoPorDriver,
     marcarPedidoEntregadoPorDriver,
-    tomarPedidoDirecto
+    tomarPedidoExpressDirecto
 };

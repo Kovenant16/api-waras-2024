@@ -44,7 +44,14 @@ import {
     acceptExpressOrder,
     acceptPackageOrder,
     getMyAssignedOrders,
-    getDriverOrdersByDate
+    getDriverOrdersByDate,
+    asignarDriver,
+    liberarPedidoPorDriver,
+    marcarPedidoRecogidoPorDriver,
+    marcarPedidoEnLocalPorDriver,
+    aceptarPedidoPorDriver,
+    marcarPedidoEntregadoPorDriver,
+    tomarPedidoExpressDirecto
 } from "../controllers/pedidoController.js";
 import checkAuth from "../middleware/checkAuth.js";
 
@@ -97,7 +104,14 @@ router.post('/app/accept/:id', checkAuth, acceptAppOrder);
 router.post('/express/accept/:id', checkAuth, acceptExpressOrder);
 router.post('/paqueteria/accept/:id', checkAuth, acceptPackageOrder);
 router.get('/misPedidosAsignados/misPedidos', checkAuth, getMyAssignedOrders);
-router.get('/orders/by-date',checkAuth,getDriverOrdersByDate);
+router.get('/orders/by-date', checkAuth, getDriverOrdersByDate);
+router.patch('/liberarPedidoPorDriver/:id', checkAuth, liberarPedidoPorDriver);
+router.patch('/marcarRecogidoPorDriver/:id', checkAuth, marcarPedidoRecogidoPorDriver);
+router.patch('/marcarEnLocalPorDriver/:id', checkAuth, marcarPedidoEnLocalPorDriver);
+router.patch('/aceptarPedidoPorDriver/:id', checkAuth, aceptarPedidoPorDriver);
+router.patch('/marcarEntregadoPorDriver/:id', checkAuth, marcarPedidoEntregadoPorDriver);
+router.put('/tomarPedidoExpress/:id', checkAuth, tomarPedidoExpressDirecto);
+
 
 
 export default router;
