@@ -1201,7 +1201,7 @@ export const tomarPedidoAppDirecto = async (req, res) => {
         }
 
         pedido.driver = driverId;
-        pedido.estadoPedido = "aceptado";
+        pedido.estadoPedido = "driver_asignado";
         const pedidoGuardado = await pedido.save();
 
         driver.estadoUsuario = "con pedido";
@@ -1222,6 +1222,9 @@ export const tomarPedidoPaqueteDirecto = async (req, res) => {
     const { id: pedidoId } = req.params;
     const driverId = req.usuario._id; // ID del driver desde el token JWT
 
+    console.log("id", pedidoId);
+    console.log("driverId", driverId);
+
     if (!driverId) {
         console.log(`Error: No se encontró el ID del driver para el pedido de Paquetería ${pedidoId}`);
         return res.status(401).json({ msg: 'No autorizado: ID de driver no disponible.' });
@@ -1233,16 +1236,9 @@ export const tomarPedidoPaqueteDirecto = async (req, res) => {
         if (!pedido) {
             const error = new Error("Pedido de Paquetería no encontrado.");
             return res.status(404).json({ msg: error.message });
-        }
+        }        
 
-        // Similar a PedidoApp, si EnvioPaquete SIEMPRE es de tipo 'paquete',
-        // puedes omitir la validación de 'tipoPedido'.
-        // if (pedido.tipoPedido !== "paquete") {
-        //     const error = new Error(`El pedido ID ${pedidoId} no es de tipo 'paquete'.`);
-        //     return res.status(400).json({ msg: error.message });
-        // }
-
-        if (pedido.estadoPedido !== "pendiente") {
+        if (pedido.estadoPedido !== "sin asignar") {
             const error = new Error(`El pedido de Paquetería no está disponible. Estado actual: ${pedido.estadoPedido}.`);
             return res.status(400).json({ msg: error.message });
         }
@@ -1257,7 +1253,7 @@ export const tomarPedidoPaqueteDirecto = async (req, res) => {
             return res.status(404).json({ msg: error.message });
         }
 
-        pedido.driver = driverId;
+        pedido.driverAsignado = driverId;
         pedido.estadoPedido = "aceptado";
         const pedidoGuardado = await pedido.save();
 
