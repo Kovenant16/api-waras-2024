@@ -1167,6 +1167,114 @@ const tomarPedidoExpressDirecto = async (req, res) => {
     }
 };
 
+export const tomarPedidoAppDirecto = async (req, res) => {
+    const { id: pedidoId } = req.params;
+    const driverId = req.usuario._id; // ID del driver desde el token JWT
+
+    if (!driverId) {
+        console.log(`Error: No se encontró el ID del driver para el pedido de App ${pedidoId}`);
+        return res.status(401).json({ msg: 'No autorizado: ID de driver no disponible.' });
+    }
+
+    try {
+        // *** CAMBIO CLAVE AQUÍ: Usar el modelo PedidoApp ***
+        const pedido = await PedidoApp.findById(pedidoId);
+        if (!pedido) {
+            const error = new Error("Pedido de App no encontrado.");
+            return res.status(404).json({ msg: error.message });
+        }        
+
+        const estadosValidosParaTomar = ["nuevo", "preparando"];
+        if (!estadosValidosParaTomar.includes(pedido.estadoPedido)) {
+            const error = new Error(`El pedido de App no está disponible para ser tomado. Estado actual: "${pedido.estadoPedido}"`);
+            return res.status(400).json({ msg: error.message });
+        }
+        if (pedido.driver) {
+            const error = new Error("El pedido de App ya ha sido tomado por otro driver.");
+            return res.status(400).json({ msg: error.message });
+        }
+
+        const driver = await Usuario.findById(driverId);
+        if (!driver) {
+            const error = new Error("Motorizado no encontrado.");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        pedido.driver = driverId;
+        pedido.estadoPedido = "aceptado";
+        const pedidoGuardado = await pedido.save();
+
+        driver.estadoUsuario = "con pedido";
+        await driver.save();
+
+        res.json({
+            msg: "Pedido de App aceptado con éxito.",
+            pedido: pedidoGuardado
+        });
+
+    } catch (error) {
+        console.error("Error en tomarPedidoAppDirecto:", error);
+        res.status(500).json({ msg: "Error interno del servidor, intente nuevamente." });
+    }
+};
+
+export const tomarPedidoPaqueteDirecto = async (req, res) => {
+    const { id: pedidoId } = req.params;
+    const driverId = req.usuario._id; // ID del driver desde el token JWT
+
+    if (!driverId) {
+        console.log(`Error: No se encontró el ID del driver para el pedido de Paquetería ${pedidoId}`);
+        return res.status(401).json({ msg: 'No autorizado: ID de driver no disponible.' });
+    }
+
+    try {
+        // *** CAMBIO CLAVE AQUÍ: Usar el modelo EnvioPaquete ***
+        const pedido = await EnvioPaquete.findById(pedidoId);
+        if (!pedido) {
+            const error = new Error("Pedido de Paquetería no encontrado.");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        // Similar a PedidoApp, si EnvioPaquete SIEMPRE es de tipo 'paquete',
+        // puedes omitir la validación de 'tipoPedido'.
+        // if (pedido.tipoPedido !== "paquete") {
+        //     const error = new Error(`El pedido ID ${pedidoId} no es de tipo 'paquete'.`);
+        //     return res.status(400).json({ msg: error.message });
+        // }
+
+        if (pedido.estadoPedido !== "pendiente") {
+            const error = new Error(`El pedido de Paquetería no está disponible. Estado actual: ${pedido.estadoPedido}.`);
+            return res.status(400).json({ msg: error.message });
+        }
+        if (pedido.driver) {
+            const error = new Error("El pedido de Paquetería ya ha sido tomado por otro driver.");
+            return res.status(400).json({ msg: error.message });
+        }
+
+        const driver = await Usuario.findById(driverId);
+        if (!driver) {
+            const error = new Error("Motorizado no encontrado.");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        pedido.driver = driverId;
+        pedido.estadoPedido = "aceptado";
+        const pedidoGuardado = await pedido.save();
+
+        driver.estadoUsuario = "con pedido";
+        await driver.save();
+
+        res.json({
+            msg: "Pedido de Paquetería aceptado con éxito.",
+            pedido: pedidoGuardado
+        });
+
+    } catch (error) {
+        console.error("Error en tomarPedidoPaqueteDirecto:", error);
+        res.status(500).json({ msg: "Error interno del servidor, intente nuevamente." });
+    }
+};
+
 const obtenerPedidosPorTelefonoConGps = async (req, res) => {
     try {
         let { telefono } = req.body;

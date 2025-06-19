@@ -15,7 +15,8 @@ const envioPaqueteSchema = mongoose.Schema(
         estadoPedido: {
             type: String,
             enum: [
-                "pendiente",    // Creado, esperando asignación/confirmación
+                "sin asignar", // Pedido creado, sin asignar a un driver
+                "pendiente",    // Asignado, esperando confirmación
                 "aceptado",     // Asignado a un driver
                 "en_recojo",    // Driver en camino al punto de recojo
                 "recogido",     // Paquete recogido
@@ -24,7 +25,7 @@ const envioPaqueteSchema = mongoose.Schema(
                 "cancelado",    // Pedido cancelado
                 "rechazado",    // Pedido rechazado por driver o sistema
             ],
-            default: "pendiente",
+            default: "sin asignar",
             trim: true,
         },
         // **costoEnvio es el único campo para el precio total del servicio de delivery.**
