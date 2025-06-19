@@ -2713,7 +2713,7 @@ export const getMyAssignedOrders = async (req, res) => {
         // Si Pedido también tiene 'orderItems' referenciando productos, aplica esto.
         // .populate('orderItems.productId') 
         .populate({ path: "generadoPor", select: "nombre" })
-        .populate({ path: "local", select: "nombre gps direccion" })
+        .populate({ path: "local", select: "nombre gps direccion telefonoUno" })
         .select("cobrar comVenta porcentPago delivery direccion fecha hora local gps telefono detallePedido medioDePago estadoPedido createdAt generadoPor");
 
         const mappedExpressOrders = expressOrders.map(order => {
@@ -2730,6 +2730,7 @@ export const getMyAssignedOrders = async (req, res) => {
                 nombre: order.local?.[0]?.nombre || 'Local desconocido',
                 gps: order.local?.[0]?.gps || null,
                 direccion: order.local?.[0]?.direccion || null, 
+                telefono: order.local?.[0]?.telefonoUno || null, // Asume que el modelo Local tiene un campo 'telefonoUno'
             };
 
             return {
