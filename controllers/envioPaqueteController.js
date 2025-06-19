@@ -27,7 +27,7 @@ const crearEnvioPaquete = async (req, res) => {
         // NO DESESTRUCTURAS LAS PROPIEDADES ANIDADAS EN EL NIVEL SUPERIOR
         const nuevoEnvio = new EnvioPaquete({
             tipoPedido: req.body.tipoPedido || "paqueteria", // Puedes tomarlo del body o usar default
-            estadoPedido: "pendiente",
+            estadoPedido: "sin asignar",
             costoEnvio: costoEnvio,
             distanciaEnvioKm: distanciaEnvioKm,
 
