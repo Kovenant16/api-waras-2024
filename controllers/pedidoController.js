@@ -2650,7 +2650,7 @@ export const getMyAssignedOrders = async (req, res) => {
         .populate('orderItems.productId') 
         .populate({
             path: 'storeDetails.storeId',
-            select: 'nombre gps direccion'
+            select: 'nombre gps direccion telefonoUno'
         })
         .select("numeroPedido subtotal porcentPago deliveryCost totalAmount notes orderItems orderDate deliveryAddress storeDetails paymentMethod estadoPedido estadoTienda createdAt");
 
@@ -2689,6 +2689,7 @@ export const getMyAssignedOrders = async (req, res) => {
                 nombre: order.storeDetails?.storeId?.nombre || 'Tienda Desconocida',
                 gps: order.storeDetails?.storeId?.gps || null,
                 direccion: order.storeDetails?.storeId?.direccion || null,
+                telefono: order.storeDetails?.storeId?.telefonoUno || null, // Asume que el modelo StoreDetails tiene un campo 'telefono'
             },
             createdAt: order.createdAt?.toISOString() || new Date(0).toISOString(),
             numeroPedido: order.numeroPedido || null,
