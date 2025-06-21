@@ -610,6 +610,58 @@ const tomarPedido = async (req, res) => {
 };
 
 
+export const obtenerUltimosPedidosApp = async (req, res) => {
+    try {
+        // IMPORTANTE: Recuerda obtener el userId de forma segura, preferiblemente desde req.user._id
+        const userId = req.params.userId; 
+
+        if (!userId) {
+            return res.status(400).json({ msg: "El ID de usuario es obligatorio para obtener los pedidos." });
+        }
+
+        const ultimosPedidos = await PedidoApp.find({ userId })
+            .sort({ createdAt: -1 }) // Ordenar por fecha de creación descendente
+            .limit(3) // Limitar a los 3 pedidos más recientes
+            .populate({
+                path: 'orderItems.productId',
+                select: 'nombre -_id' // Solo selecciona el nombre del producto, excluyendo su _id
+            })
+            .populate({
+                path: 'storeDetails.storeId',
+                select: 'nombre -_id' // Solo selecciona el nombre de la tienda, excluyendo su _id
+            })
+            .select(
+                '_id orderDate totalAmount estadoPedido orderItems.quantity' + // Campos directos
+                ' storeDetails.storeId' // Asegura que storeDetails.storeId se incluye para la población
+            );
+
+        // Mapear los resultados para obtener el formato deseado
+        const pedidosSimplificados = ultimosPedidos.map(pedido => {
+            return {
+                id: pedido._id, // Utiliza el _id del pedido como 'id'
+                date: pedido.orderDate.toISOString().split('T')[0], // Formatea la fecha a 'YYYY-MM-DD'
+                store: pedido.storeDetails.storeId.nombre, // Accede al nombre de la tienda populada
+                total: pedido.totalAmount,
+                status: pedido.estadoPedido,
+                items: pedido.orderItems.map(item => ({
+                    quantity: item.quantity,
+                    productName: item.productId.nombre // Accede al nombre del producto populado
+                }))
+            };
+        });
+
+        res.status(200).json({
+            msg: "Últimos 3 pedidos del usuario obtenidos y simplificados exitosamente",
+            pedidos: pedidosSimplificados,
+        });
+
+    } catch (error) {
+        console.error("Error al obtener y simplificar los pedidos de la aplicación:", error);
+        res.status(500).json({ msg: "Error interno del servidor al obtener los pedidos." });
+    }
+};
+
+
 
 
 

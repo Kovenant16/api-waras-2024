@@ -7,7 +7,8 @@ import {
     obtenerPedidosEnTransito,
     obtenerPedidosPorUsuario,
     obtenerPedidosPorTienda,
-    obtenerPedidosSinDriver
+    obtenerPedidosSinDriver,
+    obtenerUltimosPedidosApp
 } from '../controllers/appPedidoController.js';
 import checkAuth from '../middleware/checkAuth.js'; // Asegúrate de tener un middleware de autenticación si es necesario
 
@@ -55,6 +56,8 @@ router.get('/user', obtenerPedidosPorUsuario);
 router.get('/store/:storeId', obtenerPedidosPorTienda);
 
 router.get('/pedidosSinDriver',checkAuth, obtenerPedidosSinDriver);
+
+router.get('/ultimos/:userId', obtenerUltimosPedidosApp);
 
 
 export default router;
