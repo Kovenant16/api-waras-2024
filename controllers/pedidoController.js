@@ -212,7 +212,7 @@ const nuevoPedidoSocio = async (req, res) => {
         // Capitaliza la primera letra del nombre del local y de la dirección
         const nombreLocal = local.nombre.charAt(0).toUpperCase() + local.nombre.slice(1).toLowerCase();
         const direccion = proyectoAlmacenado.direccion.charAt(0).toUpperCase() + proyectoAlmacenado.direccion.slice(1).toLowerCase();
-        const chatIdCentral = '-4112441362'
+        const chatIdCentral = '-1002562943564'
         // Crea el mensaje incluyendo los detalles del local y la hora
         const message = `✅Nuevo pedido creado\n\nPor: ${nombreLocal}\nDirección: ${direccion}\nHora: ${proyectoAlmacenado.hora}`;
         sendMessage(message, chatIdCentral);
@@ -710,7 +710,7 @@ const liberarPedidoAutomatico = async (pedidoId, driverId) => {
 
         // Enviar mensaje a Telegram (al local)
         const local = await Local.findById(pedido.local).select("idTelegram");
-        const idTelegramLocal = local?.idTelegram || -4112441362; // Usar ID del local o un ID global de alerta
+        const idTelegramLocal = local?.idTelegram || -1002562943564; // Usar ID del local o un ID global de alerta
         if (idTelegramLocal) {
             const mensaje = `⏳ Pedido *${pedido._id.toString().substring(0, 7).toUpperCase()}* liberado automáticamente:\n\nHora: ${pedido.hora}\nDirección: ${pedido.direccion}\n\nEl motorizado *${driver ? driver.nombre : 'asignado previamente'}* no aceptó a tiempo.`;
             try {
@@ -787,7 +787,7 @@ const liberarPedidoPorDriver = async (req, res) => {
 
         // Enviar mensaje a Telegram (al local)
         const local = await Local.findById(pedido.local).select("idTelegram");
-        const idTelegramLocal = local?.idTelegram || -4112441362; // O usa una variable de entorno para el chat global
+        const idTelegramLocal = local?.idTelegram || -1002562943564; // O usa una variable de entorno para el chat global
         if (idTelegramLocal) {
             const mensaje = `🔄 Pedido *${pedido._id.toString().substring(0, 7).toUpperCase()}* liberado manualmente:\n\nHora: ${pedido.hora}\nDirección: ${pedido.direccion}\n\nHa sido liberado por *${driver.nombre}*.`;
             try {
@@ -1058,7 +1058,7 @@ const marcarPedidoEntregadoPorDriver = async (req, res) => {
         //await driver.save();
 
         // ID alternativo de Telegram para mensajes sin GPS (usar variable de entorno)
-        const idTelegramAlternativo = process.env.TELEGRAM_GLOBAL_CHAT_ID || -4112441362; // Asegúrate de usar una variable de entorno
+        const idTelegramAlternativo = process.env.TELEGRAM_GLOBAL_CHAT_ID || -1002562943564; // Asegúrate de usar una variable de entorno
 
         let mensajeTexto;
         if (pedido.gps && pedido.gps.trim() !== "") {
@@ -1643,7 +1643,7 @@ const liberarPedido = async (req, res) => {
             const driver = await Usuario.findById(pedido.driver).select("nombre");
             const local = await Local.findById(pedido.local).select("idTelegram");
 
-            const idTelegram = -4112441362; // Usar optional chaining para evitar errores si local es null
+            const idTelegram = -1002562943564; // Usar optional chaining para evitar errores si local es null
             console.log('ID de Telegram:', idTelegram);
 
             // Enviar mensaje de liberación de pedido
@@ -1771,7 +1771,7 @@ const actualizarCoordenadasPedido = async (req, res) => {
 
         // Obtener el ID de Telegram del local asociado al pedido
         const local = await Local.findById(pedido.local).select("idTelegram");
-        const idTelegram = -4112441362; // Usar optional chaining para evitar errores si local es null
+        const idTelegram = -1002562943564; // Usar optional chaining para evitar errores si local es null
 
         // Enviar mensaje de actualización de coordenadas
         if (idTelegram) {
@@ -1820,7 +1820,7 @@ const marcarPedidoEntregado = async (req, res) => {
         const pedidoGuardado = await pedido.save();
 
         // ID alternativo de Telegram para mensajes sin GPS
-        const idTelegramAlternativo = -4112441362; // Configura este valor en tus variables de entorno
+        const idTelegramAlternativo = -1002562943564; // Configura este valor en tus variables de entorno
 
         // Verificar existencia de ID de Telegram y GPS
         if (pedido.idTelegram || idTelegramAlternativo) {

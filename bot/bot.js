@@ -91,7 +91,7 @@ bot.launch()
 
 // Función para enviar mensajes
 export const sendMessageToTelegram = (message) => {
-  bot.telegram.sendMessage('-4112441362', message);
+  bot.telegram.sendMessage('-1002562943564', message);
 };
 
 
@@ -127,7 +127,7 @@ bot.on('callback_query', async (ctx) => {
 
 
 export const sendMessageWithConfirmButton = (message, orderId) => {
-  const chatId = '-4112441362';
+  const chatId = '-1002562943564';
   bot.telegram.sendMessage(chatId, message, {
     reply_markup: {
       inline_keyboard: [
@@ -144,7 +144,7 @@ export const sendMessageWithConfirmButton = (message, orderId) => {
 };
 
 export const sendMessage = (message, chatId) => {
-  //const chatId = '-4112441362';
+  //const chatId = '-1002562943564';
   bot.telegram.sendMessage(chatId, message)
     .then(() => {
       console.log('Message sent successfully');

@@ -610,7 +610,7 @@ const desactivarUsuarioPorAdmin = async (req, res) => {
 
         // Obtener motorizados activos y enviar mensaje de Telegram
         //await obtenerMotorizadosActivosYEnviarMensaje();
-        await sendMessageWithId("-4112441362", mensaje);
+        await sendMessageWithId("-1002562943564", mensaje);
         //await sendMessageWithId("-4241205369", mensaje);
 
         res.json({ msg: "Usuario desactivado correctamente" });
@@ -685,7 +685,7 @@ const obtenerMotorizadosLibreYEnviarMensaje = async (id) => {
 
 
         // Enviar mensaje a Telegram
-        await sendMessageWithId("-4112441362", mensaje); // Reemplaza "-4112441362" con el chat_id adecuado
+        await sendMessageWithId("-1002562943564", mensaje); // Reemplaza "-1002562943564" con el chat_id adecuado
     } catch (error) {
         console.log("Error al obtener los motorizados activos o enviar el mensaje de Telegram:", error);
     }
@@ -711,7 +711,7 @@ const obtenerMotorizadosLibreYEnviarMensaje = async (id) => {
 //         });
 
 //         // Enviar mensaje a Telegram
-//         await sendMessageWithId("-4112441362", mensaje); // Reemplaza "-4112441362" con el chat_id adecuado
+//         await sendMessageWithId("-1002562943564", mensaje); // Reemplaza "-1002562943564" con el chat_id adecuado
 //     } catch (error) {
 //         console.log("Error al obtener los motorizados activos o enviar el mensaje de Telegram:", error);
 //     }
@@ -738,7 +738,7 @@ export const obtenerMotorizadosActivosYEnviarMensaje = async () => {
         });
 
         // Enviar mensaje a Telegram
-        await sendMessageWithId("-4112441362", mensaje); // Reemplaza "-4112441362" con el chat_id adecuado grupo
+        await sendMessageWithId("-1002562943564", mensaje); // Reemplaza "-1002562943564" con el chat_id adecuado grupo
     } catch (error) {
         console.log("Error al obtener los motorizados activos o enviar el mensaje de Telegram:", error);
     }
