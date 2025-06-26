@@ -53,7 +53,8 @@ import {
     marcarPedidoEntregadoPorDriver,
     tomarPedidoExpressDirecto,
     tomarPedidoAppDirecto,
-    tomarPedidoPaqueteDirecto
+    tomarPedidoPaqueteDirecto,
+    aceptarPedidoExpress
 } from "../controllers/pedidoController.js";
 import checkAuth from "../middleware/checkAuth.js";
 
@@ -115,6 +116,8 @@ router.patch('/marcarEntregadoPorDriver/:id', checkAuth, marcarPedidoEntregadoPo
 router.put('/tomarPedidoExpress/:id', checkAuth, tomarPedidoExpressDirecto);
 router.put('/tomarPedidoApp/:id', checkAuth, tomarPedidoAppDirecto);
 router.put('/tomarPedidoPaqueteria/:id', checkAuth, tomarPedidoPaqueteDirecto);
+router.put('/aceptarPedidoExpress/:id', checkAuth, aceptarPedidoExpress);
+
 
 
 

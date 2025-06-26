@@ -1102,6 +1102,70 @@ const marcarPedidoEntregadoPorDriver = async (req, res) => {
     }
 };
 
+export const aceptarPedidoExpress = async (req, res) => {
+    const { id: pedidoId } = req.params; // ID del pedido a aceptar
+    const driverId = req.usuario._id; // Asume que el ID del driver viene del token JWT autenticado
+
+    if (!driverId) {
+        console.log(`Error: No se encontró el ID del driver en la solicitud para el pedido ${pedidoId}`);
+        return res.status(401).json({
+            msg: 'No autorizado: ID de driver no disponible.',
+        });
+    }
+
+    try {
+        const pedido = await Pedido.findById(pedidoId);
+        if (!pedido) {
+            const error = new Error("Pedido no encontrado.");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        // --- VALIDACIÓN CLAVE ---
+        // El pedido debe estar en estado "pendiente"
+        if (pedido.estadoPedido !== "pendiente") {
+            const error = new Error(`El pedido no está disponible para ser aceptado. Estado actual: ${pedido.estadoPedido}.`);
+            return res.status(400).json({ msg: error.message });
+        }
+
+        
+        // Si el pedido ya tiene un motorizado asignado Y NO es el motorizado actual,
+        // significa que otro ya lo está manejando.
+        if (pedido.driver && pedido.driver.toString() !== driverId.toString()) {
+            const error = new Error("El pedido ya fue asignado a otro motorizado.");
+            return res.status(400).json({ msg: error.message });
+        }
+
+        // Si el pedido está en pendiente y no tiene un driver asignado, o si tiene uno
+        // asignado y es el mismo driver que intenta tomarlo, lo asignamos/confirmamos la asignación.
+        const driver = await Usuario.findById(driverId);
+        if (!driver) {
+            const error = new Error("Motorizado no encontrado.");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        // Si el pedido no tiene un driver asignado (estaba en pendiente sin asignar) o
+        // si el driver asignado es el mismo que intenta aceptarlo, se procede.
+        pedido.driver = driverId; // Se asigna o reconfirma el driver
+        pedido.estadoPedido = "aceptado"; // Cambia a estado "aceptado"
+        await pedido.save();
+
+        // --- Actualizar el estado del motorizado ---
+        driver.estadoUsuario = "con pedido";
+        await driver.save();
+
+        // --- Respuesta Optimizada para el Frontend ---
+        res.json({
+            msg: `Pedido ${pedidoId} aceptado correctamente.`,
+            pedidoId: pedidoId,
+            estadoActualizado: "aceptado"
+        });
+
+    } catch (error) {
+        console.error("Error en aceptarPedidoExpress:", error);
+        res.status(500).json({ msg: "Error interno del servidor, intente nuevamente." });
+    }
+};
+
 const tomarPedidoExpressDirecto = async (req, res) => {
     const { id: pedidoId } = req.params; // ID del pedido a tomar
     const driverId = req.usuario._id; // Asume que el ID del driver viene del token JWT autenticado
