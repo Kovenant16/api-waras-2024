@@ -1166,6 +1166,157 @@ export const aceptarPedidoExpress = async (req, res) => {
     }
 };
 
+
+export const marcarPedidoExpressEnLocal = async (req, res) => {
+    const { id: pedidoId } = req.params; // ID del pedido a marcar "en local"
+    const driverId = req.usuario._id; // Asume que el ID del driver viene del token JWT autenticado
+
+    if (!driverId) {
+        console.log(`Error: No se encontró el ID del driver en la solicitud para el pedido ${pedidoId}`);
+        return res.status(401).json({
+            msg: 'No autorizado: ID de driver no disponible.',
+        });
+    }
+
+    try {
+        const pedido = await Pedido.findById(pedidoId);
+        if (!pedido) {
+            const error = new Error("Pedido no encontrado.");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        // --- VALIDACIÓN CLAVE ---
+        // El pedido debe estar en estado "aceptado" para poder marcarse "en local"
+        if (pedido.estadoPedido !== "aceptado") {
+            const error = new Error(`El pedido no puede marcarse "en local". Estado actual: ${pedido.estadoPedido}.`);
+            return res.status(400).json({ msg: error.message });
+        }
+
+        // El motorizado asignado al pedido debe ser el mismo que intenta cambiar el estado
+        if (!pedido.driver || pedido.driver.toString() !== driverId.toString()) {
+            const error = new Error("Este pedido no está asignado a este motorizado.");
+            return res.status(403).json({ msg: error.message }); // 403 Forbidden si no es su pedido
+        }
+
+        // --- Actualizar el pedido ---
+        pedido.estadoPedido = "en local"; // Cambia el estado a "en local"
+        await pedido.save();
+
+        // --- No es necesario cambiar el estado del driver aquí si sigue "con pedido" ---
+        // Si necesitas que el estado del driver cambie a algo específico al llegar al local,
+        // lo harías aquí. Por ahora, asumimos que sigue "con pedido".
+
+        // --- Respuesta Optimizada para el Frontend ---
+        res.json({
+            msg: `Pedido ${pedidoId} marcado "en local" correctamente.`,
+            pedidoId: pedidoId,
+            estadoActualizado: "en local"
+        });
+
+    } catch (error) {
+        console.error("Error en marcarPedidoExpressEnLocal:", error);
+        res.status(500).json({ msg: "Error interno del servidor, intente nuevamente." });
+    }
+};
+
+export const marcarPedidoExpressRecogido = async (req, res) => {
+    const { id: pedidoId } = req.params; // ID del pedido a marcar "recogido"
+    const driverId = req.usuario._id; // Asume que el ID del driver viene del token JWT autenticado
+
+    if (!driverId) {
+        console.log(`Error: No se encontró el ID del driver en la solicitud para el pedido ${pedidoId}`);
+        return res.status(401).json({
+            msg: 'No autorizado: ID de driver no disponible.',
+        });
+    }
+
+    try {
+        const pedido = await Pedido.findById(pedidoId);
+        if (!pedido) {
+            const error = new Error("Pedido no encontrado.");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        // --- VALIDACIÓN CLAVE ---
+        // El pedido debe estar en estado "en local" para poder marcarse "recogido"
+        if (pedido.estadoPedido !== "en local") {
+            const error = new Error(`El pedido no puede marcarse "recogido". Estado actual: ${pedido.estadoPedido}.`);
+            return res.status(400).json({ msg: error.message });
+        }
+
+        // El motorizado asignado al pedido debe ser el mismo que intenta cambiar el estado
+        if (!pedido.driver || pedido.driver.toString() !== driverId.toString()) {
+            const error = new Error("Este pedido no está asignado a este motorizado.");
+            return res.status(403).json({ msg: error.message });
+        }
+
+        // --- Actualizar el pedido ---
+        pedido.estadoPedido = "recogido"; // Cambia el estado a "recogido"
+        await pedido.save();
+
+        // --- Respuesta Optimizada para el Frontend ---
+        res.json({
+            msg: `Pedido ${pedidoId} marcado "recogido" correctamente.`,
+            pedidoId: pedidoId,
+            estadoActualizado: "recogido"
+        });
+
+    } catch (error) {
+        console.error("Error en marcarPedidoExpressRecogido:", error);
+        res.status(500).json({ msg: "Error interno del servidor, intente nuevamente." });
+    }
+};
+
+export const marcarPedidoExpressEntregado = async (req, res) => {
+    const { id: pedidoId } = req.params; // ID del pedido a marcar "entregado"
+    const driverId = req.usuario._id; // Asume que el ID del driver viene del token JWT autenticado
+
+    if (!driverId) {
+        console.log(`Error: No se encontró el ID del driver en la solicitud para el pedido ${pedidoId}`);
+        return res.status(401).json({
+            msg: 'No autorizado: ID de driver no disponible.',
+        });
+    }
+
+    try {
+        const pedido = await Pedido.findById(pedidoId);
+        if (!pedido) {
+            const error = new Error("Pedido no encontrado.");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        // --- VALIDACIÓN CLAVE ---
+        // El pedido debe estar en estado "recogido" para poder marcarse "entregado"
+        if (pedido.estadoPedido !== "recogido") {
+            const error = new Error(`El pedido no puede marcarse "entregado". Estado actual: ${pedido.estadoPedido}.`);
+            return res.status(400).json({ msg: error.message });
+        }
+
+        // El motorizado asignado al pedido debe ser el mismo que intenta cambiar el estado
+        if (!pedido.driver || pedido.driver.toString() !== driverId.toString()) {
+            const error = new Error("Este pedido no está asignado a este motorizado.");
+            return res.status(403).json({ msg: error.message });
+        }
+
+        // --- Actualizar el pedido ---
+        pedido.estadoPedido = "entregado"; // Cambia el estado a "entregado"
+        await pedido.save();
+        
+
+        // --- Respuesta Optimizada para el Frontend ---
+        res.json({
+            msg: `Pedido ${pedidoId} marcado "entregado" correctamente.`,
+            pedidoId: pedidoId,
+            estadoActualizado: "entregado",
+        });
+
+    } catch (error) {
+        console.error("Error en marcarPedidoExpressEntregado:", error);
+        res.status(500).json({ msg: "Error interno del servidor, intente nuevamente." });
+    }
+};
+
+
 const tomarPedidoExpressDirecto = async (req, res) => {
     const { id: pedidoId } = req.params; // ID del pedido a tomar
     const driverId = req.usuario._id; // Asume que el ID del driver viene del token JWT autenticado

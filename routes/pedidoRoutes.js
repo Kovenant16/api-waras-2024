@@ -54,7 +54,10 @@ import {
     tomarPedidoExpressDirecto,
     tomarPedidoAppDirecto,
     tomarPedidoPaqueteDirecto,
-    aceptarPedidoExpress
+    aceptarPedidoExpress,
+    marcarPedidoExpressEnLocal,
+    marcarPedidoExpressRecogido,
+    marcarPedidoExpressEntregado
 } from "../controllers/pedidoController.js";
 import checkAuth from "../middleware/checkAuth.js";
 
@@ -117,6 +120,10 @@ router.put('/tomarPedidoExpress/:id', checkAuth, tomarPedidoExpressDirecto);
 router.put('/tomarPedidoApp/:id', checkAuth, tomarPedidoAppDirecto);
 router.put('/tomarPedidoPaqueteria/:id', checkAuth, tomarPedidoPaqueteDirecto);
 router.put('/aceptarPedidoExpress/:id', checkAuth, aceptarPedidoExpress);
+router.put('/marcarPedidoExpressEnLocal/:id', checkAuth, marcarPedidoExpressEnLocal);
+router.put('/marcarPedidoExpressRecogido/:id', checkAuth, marcarPedidoExpressRecogido);
+router.put('/entregarPedidoExpress/:id', checkAuth, marcarPedidoExpressEntregado);
+
 
 
 
