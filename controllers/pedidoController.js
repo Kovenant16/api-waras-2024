@@ -1200,6 +1200,7 @@ export const marcarPedidoExpressEnLocal = async (req, res) => {
 
         // --- Actualizar el pedido ---
         pedido.estadoPedido = "en local"; // Cambia el estado a "en local"
+        pedido.horaLlegadaLocal = new Date().toISOString();
         await pedido.save();
 
         // --- No es necesario cambiar el estado del driver aquí si sigue "con pedido" ---
@@ -1252,6 +1253,7 @@ export const marcarPedidoExpressRecogido = async (req, res) => {
 
         // --- Actualizar el pedido ---
         pedido.estadoPedido = "recogido"; // Cambia el estado a "recogido"
+        pedido.horaRecojo = new Date().toISOString(); 
         await pedido.save();
 
         // --- Respuesta Optimizada para el Frontend ---
@@ -1300,6 +1302,7 @@ export const marcarPedidoExpressEntregado = async (req, res) => {
 
         // --- Actualizar el pedido ---
         pedido.estadoPedido = "entregado"; // Cambia el estado a "entregado"
+        pedido.horaEntrega = new Date().toISOString();
         await pedido.save();
         
 
@@ -1360,6 +1363,7 @@ const tomarPedidoExpressDirecto = async (req, res) => {
         // --- Actualizar el pedido ---
         pedido.driver = driverId;
         pedido.estadoPedido = "aceptado"; // Pasa directamente a aceptado
+        pedido.horaAceptado = new Date().toISOString(); // Registrar hora de aceptación
         // Ya no necesitamos guardar idTelegram aquí, ya que no se envían mensajes de Telegram
 
         const pedidoGuardado = await pedido.save();
