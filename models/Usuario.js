@@ -1,6 +1,33 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 
+const fcmTokenSchema = new mongoose.Schema({
+    token: {
+        type: String,
+        required: true,
+        unique: true, 
+    },
+    deviceId: { // Opcional: Si quieres identificar el dispositivo
+        type: String,
+        trim: true,
+        // Puedes hacerlo único por cliente si lo deseas:
+        // unique: [true, "Este dispositivo ya está registrado para este cliente"]
+        // Pero para eso, la lógica de guardado debe ser más compleja.
+    },
+    platform: { // Opcional: 'android', 'ios', 'web'
+        type: String,
+        enum: ['android', 'ios', 'web', 'unknown'], // Restringe los valores posibles
+        default: 'unknown',
+    },
+    lastRegisteredAt: { // Para saber cuándo fue la última vez que este token se registró/actualizó
+        type: Date,
+        default: Date.now,
+    },
+}, {
+    _id: false, // No necesitamos un _id para cada token en el array, a menos que tengas una razón para ello.
+    timestamps: false, // No necesitamos createdAt/updatedAt para cada token si lastRegisteredAt es suficiente.
+});
+
 const usuarioSchema = mongoose.Schema(
     {
         nombre: {
@@ -63,6 +90,10 @@ const usuarioSchema = mongoose.Schema(
         },
         token: {
             type: String,
+        },
+        fcmTokens: {
+            type: [fcmTokenSchema], // ¡Añade esto!
+            default: [],
         },
         confirmado: {
             type: Boolean,

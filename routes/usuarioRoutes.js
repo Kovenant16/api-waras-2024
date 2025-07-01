@@ -26,7 +26,8 @@ import {
     liberarUsuario,
     editarUsuario,
     obtenerUltimosUsuarios,
-    desactivarUsuarioPorAdmin
+    desactivarUsuarioPorAdmin,
+    registrarFcmToken
 } from "../controllers/usuarioController.js";
 
 import checkAuth from "../middleware/checkAuth.js";
@@ -58,5 +59,6 @@ router.post("/buscarUsuarioPorEmail", obtenerUsuarioPorEmail)
 router.get("/perfil", checkAuth, perfil);
 router.get("/obtenerEstados", checkAuth, obtenerEstados);
 router.get("/obtenerUltimosUsuarios", checkAuth, obtenerUltimosUsuarios);
+router.post('/:userId/fcm-token', /*checkAuth,*/ registrarFcmToken);
 
 export default router;

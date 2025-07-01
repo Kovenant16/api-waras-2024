@@ -42,6 +42,7 @@ const registrarUsuario = async (req, res) => {
     }
 };
 
+
 const registrarUsuarioAdmin = async (req, res) => {
     //evitar registros duplicados
     const { email } = req.body;
@@ -691,32 +692,6 @@ const obtenerMotorizadosLibreYEnviarMensaje = async (id) => {
     }
 };
 
-
-
-// export const obtenerMotorizadosActivosYEnviarMensaje = async () => {
-//     try {
-//         const motorizados = await Usuario.find({
-//             rol: "motorizado",
-//             habilitado: true,
-//             activo: true,
-//             estadoUsuario: "Libre"
-//         })
-//         .select("nombre horaActivacion telefono") // Selecciona solo los campos necesarios
-//         .sort({ horaActivacion: 1 }); // Ordena por horaActivacion, el más antiguo primero
-
-//         // Crear el mensaje de Telegram con la lista de motorizados activos
-//         let mensaje = "📋 Lista de motorizados activos:\n\n";
-//         motorizados.forEach((motorizado, index) => {
-//             mensaje += `${index + 1}. ${motorizado.nombre} - H.A: ${new Date(motorizado.horaActivacion).toLocaleTimeString('es-PE', { hour12: true })}\n`;
-//         });
-
-//         // Enviar mensaje a Telegram
-//         await sendMessageWithId("-1002562943564", mensaje); // Reemplaza "-1002562943564" con el chat_id adecuado
-//     } catch (error) {
-//         console.log("Error al obtener los motorizados activos o enviar el mensaje de Telegram:", error);
-//     }
-// };
-
 export const obtenerMotorizadosActivosYEnviarMensaje = async () => {
     try {
         const motorizados = await Usuario.find({
@@ -802,6 +777,60 @@ const obtenerUltimosUsuarios = async (req, res) => {
     }
 };
 
+const registrarFcmToken = async (req, res) => {
+    const { userId } = req.params; // O de req.user._id si está autenticado
+    const { fcmToken, deviceId, platform } = req.body; // Ahora esperamos más datos
+
+    if (!fcmToken || !deviceId || !platform) {
+        const error = new Error("El token FCM, deviceId y platform son requeridos.");
+        return res.status(400).json({ msg: error.message });
+    }
+
+    try {
+        const usuario = await Usuario.findById(userId);
+
+        if (!usuario) {
+            const error = new Error("Usuario no encontrado.");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        // Asegúrate de que fcmTokens sea un arreglo
+        if (!usuario.fcmTokens || !Array.isArray(usuario.fcmTokens)) {
+            usuario.fcmTokens = [];
+        }
+
+        // Buscar si ya existe un token para este deviceId o si el mismo fcmToken ya está registrado
+        // Se prefiere buscar por deviceId para actualizar el token si el dispositivo es el mismo
+        let existingTokenIndex = usuario.fcmTokens.findIndex(
+            t => t.deviceId === deviceId
+        );
+
+        if (existingTokenIndex !== -1) {
+            // Si encontramos un token para este deviceId, actualizamos su información
+            usuario.fcmTokens[existingTokenIndex].token = fcmToken;
+            usuario.fcmTokens[existingTokenIndex].platform = platform;
+            usuario.fcmTokens[existingTokenIndex].lastRegisteredAt = new Date();
+            console.log(`Token FCM actualizado para deviceId: ${deviceId}`);
+        } else {
+            // Si no encontramos un token para este deviceId, añadimos uno nuevo
+            usuario.fcmTokens.push({
+                token: fcmToken,
+                deviceId: deviceId,
+                platform: platform,
+                lastRegisteredAt: new Date(),
+            });
+            console.log(`Nuevo Token FCM añadido para deviceId: ${deviceId}`);
+        }
+
+        await usuario.save();
+        res.json({ msg: "Token FCM registrado/actualizado correctamente." });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ msg: "Hubo un error al registrar el token FCM." });
+    }
+};
+
 export {
     registrarUsuario,
     autenticarUsuarioAdmin,
@@ -827,5 +856,6 @@ export {
     liberarUsuario,
     editarUsuario,
     obtenerUltimosUsuarios,
-    desactivarUsuarioPorAdmin
+    desactivarUsuarioPorAdmin,
+    registrarFcmToken
 };
