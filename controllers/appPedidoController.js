@@ -56,6 +56,32 @@ const crearPedidoApp = async (req, res) => {
         // Guardar el pedido en la base de datos
         const pedidoGuardado = await nuevoPedidoApp.save();
 
+
+        // --- LÓGICA DE NOTIFICACIÓN DESPUÉS DE CREAR EL PEDIDO ---
+        try {
+            await sendNewOrderNotificationToMotorizados(
+                "¡Nuevo Pedido!", // Título de la notificación
+                "Revisa la bandeja de pedidos disponibles. ¡Hay un nuevo encargo!", // Cuerpo de la notificación
+                { 
+                    orderId: pedidoGuardado._id.toString(), // Datos personalizados para la app
+                    numeroPedido: pedidoGuardado.numeroPedido.toString(),
+                    // Puedes añadir más datos relevantes aquí si la app los necesita
+                },
+                {
+                    // Opciones FCM adicionales, por ejemplo, prioridad alta
+                    priority: 'high', 
+                    // timeToLive: 60 * 60 * 24 // 24 horas, si necesitas que la notificación expire
+                }
+            );
+            console.log(`[appPedidoController] Notificación de nuevo pedido enviada a motorizados para pedido ${pedidoGuardado.numeroPedido}.`);
+        } catch (notificationError) {
+            console.error(`[appPedidoController] Error al enviar notificación de nuevo pedido para ${pedidoGuardado.numeroPedido}:`, notificationError);
+            // Decide cómo manejar este error: ¿debes retornar un error 500 al cliente?
+            // Generalmente, un fallo en la notificación no debería impedir que el pedido se cree.
+            // Podrías registrar el error y continuar.
+        }
+        // --- FIN LÓGICA DE NOTIFICACIÓN ---
+
         res.status(201).json({
             msg: "Pedido de la aplicación creado exitosamente",
             pedido: pedidoGuardado,
@@ -660,6 +686,116 @@ export const obtenerUltimosPedidosApp = async (req, res) => {
         res.status(500).json({ msg: "Error interno del servidor al obtener los pedidos." });
     }
 };
+
+export async function sendNewOrderNotificationToMotorizados() {
+    try {
+        // 1. Obtener usuarios 'motorizado' con rol="motorizado" y activo=true
+        const motorizados = await Usuario.find({
+            rol: 'motorizado',
+            activo: true // Condición para usuarios activos
+        });
+
+        if (motorizados.length === 0) {
+            console.log('No se encontraron motorizados activos para enviar la notificación.');
+            return;
+        }
+
+        let fcmTokens = [];
+        motorizados.forEach(motorizado => {
+            if (motorizado.fcmTokens && motorizado.fcmTokens.length > 0) {
+                // Recopilar todos los tokens válidos de cada motorizado
+                motorizado.fcmTokens.forEach(tokenObj => {
+                    if (tokenObj.token) { // Asegúrate de que el campo sea 'token' y no 'fcmToken' como en el ejemplo anterior
+                         fcmTokens.push(tokenObj.token);
+                    }
+                });
+            }
+        });
+
+        // Eliminar tokens duplicados si los hay (Set solo almacena valores únicos)
+        fcmTokens = [...new Set(fcmTokens)];
+
+        if (fcmTokens.length === 0) {
+            console.log('Ningún token FCM válido encontrado para los motorizados activos.');
+            return;
+        }
+
+        // 2. Preparar el mensaje de notificación
+        const notificationMessage = {
+            notification: {
+                title: 'Nuevo Pedido',
+                body: 'Revisa la bandeja de pedidos disponibles',
+            },
+            // Payload de datos opcional para manejar la navegación en la app
+            data: {
+                type: 'new_order',
+                screen: 'available_orders', // Puedes usar esto en Flutter para navegar
+            },
+            // Opcional: configurar sonidos o prioridades por plataforma
+            android: {
+                priority: 'high',
+                notification: {
+                    sound: 'default',
+                    // color: '#FF0000', // Ejemplo de color de icono de notificación
+                },
+            },
+            apns: {
+                payload: {
+                    aps: {
+                        sound: 'default',
+                    },
+                },
+            },
+        };
+
+        // 3. Registrar la estructura de la notificación (solo para depuración)
+        console.log('--- Payload de Notificación FCM a enviar ---');
+        console.log('Dirigido a los siguientes tokens FCM:', fcmTokens);
+        console.log('Mensaje de Notificación:', JSON.stringify(notificationMessage, null, 2));
+        console.log('-------------------------------------------');
+
+        // 4. Enviar la notificación usando Firebase Admin SDK
+        // sendEachForMulticast es ideal para enviar a un array de tokens
+        const messageToSend = { ...notificationMessage, tokens: fcmTokens };
+        
+        const response = await admin.messaging().sendEachForMulticast(messageToSend);
+        console.log('Resultados del envío de mensajes FCM:', response);
+        console.log(`Enviado a ${response.successCount} dispositivos, falló en ${response.failureCount} dispositivos.`);
+        
+        // Manejar los tokens que fallaron
+        if (response.failureCount > 0) {
+            response.responses.forEach((resp, idx) => {
+                if (!resp.success) {
+                    const failedToken = fcmTokens[idx];
+                    console.error(`ERROR al enviar mensaje al token ${failedToken}:`, resp.exception);
+                    
+                    // Si el error indica que el token es inválido o no registrado, deberías eliminarlo de tu DB
+                    // Ejemplos de códigos de error que indican token inválido:
+                    // 'messaging/invalid-registration-token'
+                    // 'messaging/registration-token-not-registered'
+                    // 'messaging/unregistered'
+                    if (resp.exception && resp.exception.errorInfo && 
+                        (resp.exception.errorInfo.code === 'messaging/invalid-registration-token' ||
+                         resp.exception.errorInfo.code === 'messaging/registration-token-not-registered' ||
+                         resp.exception.errorInfo.code === 'messaging/unregistered')) {
+                        
+                        console.log(`Removiendo token inválido de la base de datos: ${failedToken}`);
+                        // Lógica para eliminar el token del usuario en la base de datos
+                        // Esto podría ser un método separado en tu modelo de Usuario o aquí mismo.
+                        // Ejemplo:
+                        // await Usuario.updateMany(
+                        //     { "fcmTokens.token": failedToken },
+                        //     { $pull: { fcmTokens: { token: failedToken } } }
+                        // );
+                    }
+                }
+            });
+        }
+
+    } catch (error) {
+        console.error('Error general al enviar notificación a motorizados:', error);
+    }
+}
 
 
 

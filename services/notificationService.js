@@ -3,6 +3,7 @@
 import admin from 'firebase-admin';
 import Cliente from '../models/Cliente.js'; // Ajusta la ruta a tu modelo Cliente
 import mongoose from 'mongoose'; // Necesario para el .session si lo usas
+import Usuario from '../models/Usuario.js';
 
 /**
  * Envía una notificación push a un cliente específico y limpia los tokens inválidos.
@@ -105,5 +106,116 @@ export const sendNotificationToTopic = async (topic, title, body, data = {}) => 
     } catch (error) {
         console.error(`[Notification Service] Error al enviar notificación a tópico "${topic}":`, error);
         throw new Error('Error al enviar notificación a tópico.');
+    }
+};
+
+
+// --- NUEVA FUNCIÓN: Envía notificación a motorizados activos ---
+
+/**
+ * Envía una notificación de 'Nuevo Pedido' a todos los usuarios 'motorizado' activos.
+ * Incluye lógica de limpieza de tokens inválidos.
+ * @param {string} title - El título de la notificación (ej. "Nuevo Pedido").
+ * @param {string} body - El cuerpo del mensaje (ej. "Revisa la bandeja de pedidos disponibles").
+ * @param {object} data - (Opcional) Datos personalizados para la app (ej. { orderId: '...' }).
+ * @param {object} options - (Opcional) Opciones FCM adicionales (ej. priority, timeToLive).
+ */
+export const sendNewOrderNotificationToMotorizados = async (title, body, data = {}, options = {}) => {
+    try {
+        const motorizados = await Usuario.find({
+            rol: 'motorizado',
+            activo: true
+        });
+
+        if (motorizados.length === 0) {
+            console.log('[Notification Service] No se encontraron motorizados activos para enviar la notificación.');
+            return { success: 0, failure: 0, message: 'No active motorizados found.' };
+        }
+
+        let allTokensToSend = [];
+        motorizados.forEach(motorizado => {
+            if (motorizado.fcmTokens && motorizado.fcmTokens.length > 0) {
+                motorizado.fcmTokens.forEach(tokenObj => {
+                    if (tokenObj.token) {
+                        allTokensToSend.push(tokenObj.token);
+                    }
+                });
+            }
+        });
+
+        allTokensToSend = [...new Set(allTokensToSend)]; // Eliminar duplicados
+
+        if (allTokensToSend.length === 0) {
+            console.log('[Notification Service] Ningún token FCM válido encontrado para los motorizados activos.');
+            return { success: 0, failure: 0, message: 'No valid FCM tokens found for active motorizados.' };
+        }
+
+        const message = {
+            notification: {
+                title: title,
+                body: body,
+            },
+            data: {
+                ...data,
+                notificationType: 'new_order',
+            },
+            tokens: allTokensToSend,
+            ...options,
+            android: {
+                priority: 'high',
+                notification: {
+                    sound: 'default',
+                },
+            },
+            apns: {
+                payload: {
+                    aps: {
+                        sound: 'default',
+                    },
+                },
+            },
+        };
+
+        console.log('--- FCM Notification Payload to be sent to Motorizados ---');
+        console.log('Targeting the following FCM Tokens:', allTokensToSend);
+        console.log('Notification Message:', JSON.stringify(message, null, 2));
+        console.log('---------------------------------------------------------');
+
+        const response = await admin.messaging().sendEachForMulticast(message);
+
+        console.log(`[Notification Service] Notificación FCM enviada a motorizados. Éxitos: ${response.successCount}, Fallos: ${response.failureCount}`);
+
+        if (response.failureCount > 0) {
+            const tokensToRemoveGlobally = new Set();
+            response.responses.forEach((resp, idx) => {
+                if (!resp.success) {
+                    const failedToken = allTokensToSend[idx];
+                    if (resp.error && (
+                        resp.error.code === 'messaging/invalid-registration-token' ||
+                        resp.error.code === 'messaging/registration-token-not-registered' ||
+                        resp.error.code === 'messaging/unregistered'
+                    )) {
+                        tokensToRemoveGlobally.add(failedToken);
+                        console.log(`[Notification Service] Token inválido detectado para motorizado: ${failedToken}. Error: ${resp.error.message}`);
+                    } else {
+                        console.warn(`[Notification Service] Error desconocido al enviar a token de motorizado ${failedToken}: ${resp.error?.message || 'Sin mensaje de error'}`);
+                    }
+                }
+            });
+
+            if (tokensToRemoveGlobally.size > 0) {
+                await Usuario.updateMany(
+                    { "fcmTokens.token": { $in: [...tokensToRemoveGlobally] } },
+                    { $pull: { fcmTokens: { token: { $in: [...tokensToRemoveGlobally] } } } }
+                );
+                console.log(`[Notification Service] Eliminados ${tokensToRemoveGlobally.size} tokens inválidos de la base de datos.`);
+            }
+        }
+
+        return { success: response.successCount, failure: response.failureCount };
+
+    } catch (error) {
+        console.error('[Notification Service] Error general al enviar notificación a motorizados:', error);
+        throw new Error('Error al enviar notificación a motorizados.');
     }
 };
