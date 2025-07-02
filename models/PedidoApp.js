@@ -193,6 +193,24 @@ const pedidoAppSchema = mongoose.Schema(
             default: null,
         },
         
+        // --- NUEVOS CAMPOS PARA REGISTRAR TIMESTAMPS DE ESTADOS ---
+        horaLlegadaRecojo: { // Hora en que el driver llegó a la tienda
+            type: Date,
+            default: null,
+        },
+        horaRecojo: { // Hora en que el driver recogió el pedido de la tienda
+            type: Date,
+            default: null,
+        },
+        horaLlegadaDestino: { // Hora en que el driver llegó al destino del cliente
+            type: Date,
+            default: null,
+        },
+        horaEntrega: { // Hora en que el pedido fue entregado al cliente
+            type: Date,
+            default: null,
+        },
+        // --- FIN NUEVOS CAMPOS ---
 
         // Referencia a un posible mensaje de Telegram para notificaciones
         idMensajeTelegram: {

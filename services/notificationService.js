@@ -225,3 +225,51 @@ export const sendNewOrderNotificationToMotorizados = async (title, body, data = 
         throw new Error('Error al enviar notificación a motorizados.');
     }
 };
+
+
+export const sendNotificationToClient = async (fcmTokens, title, body, data = {}, options = {}) => {
+    if (!fcmTokens || fcmTokens.length === 0) {
+        console.warn("No se proporcionaron tokens FCM para la notificación.");
+        return { success: false, message: "No se proporcionaron tokens FCM." };
+    }
+
+    const message = {
+        notification: {
+            title: title,
+            body: body,
+        },
+        data: data, // Datos personalizados para que tu app los maneje
+        ...options // Opciones adicionales de FCM como prioridad
+    };
+
+    try {
+        // Usa sendEachForMulticast para enviar a múltiples tokens de forma eficiente
+        const response = await admin.messaging().sendEachForMulticast({
+            ...message, // Propiedades comunes del mensaje
+            tokens: fcmTokens // El array de tokens
+        });
+
+        console.log(`[notificationService] Mensaje multicast enviado a ${fcmTokens.length} dispositivos. Éxito: ${response.successCount}, Fallo: ${response.failureCount}`);
+
+        if (response.failureCount > 0) {
+            const failedTokens = [];
+            response.responses.forEach((resp, idx) => {
+                if (!resp.success) {
+                    failedTokens.push(fcmTokens[idx]);
+                    console.error(`Fallo al enviar mensaje al token ${fcmTokens[idx]}: ${resp.error}`);
+                    // Opcional: Podrías eliminar tokens inválidos o no registrados de tu base de datos aquí.
+                    // por ejemplo, si (resp.error.code === 'messaging/invalid-registration-token' || resp.error.code === 'messaging/registration-token-not-registered') {
+                    //      // Lógica para eliminar fcmTokenObj del array fcmTokens del cliente en DB
+                    // }
+                }
+            });
+            return { success: true, message: "Notificación enviada con algunos fallos.", failedTokens };
+        }
+
+        return { success: true, message: "Notificaciones enviadas exitosamente." };
+
+    } catch (error) {
+        console.error('Error al enviar el mensaje multicast:', error);
+        throw new Error('Fallo al enviar notificaciones FCM.');
+    }
+};

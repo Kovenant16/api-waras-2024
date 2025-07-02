@@ -8,7 +8,11 @@ import {
     obtenerPedidosPorUsuario,
     obtenerPedidosPorTienda,
     obtenerPedidosSinDriver,
-    obtenerUltimosPedidosApp
+    obtenerUltimosPedidosApp,
+    marcarPedidoAppEnTienda,
+    marcarPedidoAppRecogido,
+    marcarPedidoEnDestino,
+    marcarPedidoAppEntregado
 } from '../controllers/appPedidoController.js';
 import checkAuth from '../middleware/checkAuth.js'; // Asegúrate de tener un middleware de autenticación si es necesario
 
@@ -59,5 +63,22 @@ router.get('/pedidosSinDriver',checkAuth, obtenerPedidosSinDriver);
 
 router.get('/ultimos/:userId', obtenerUltimosPedidosApp);
 
+
+// Ruta para marcar un pedido como 'en_tienda' (driver llegó a la tienda)
+// Idealmente, esta ruta debería ser protegida por autenticación
+// y posiblemente por un middleware que verifique si el usuario es un driver o admin.
+router.put('/pedidos-app/en-tienda/:id',checkAuth, marcarPedidoAppEnTienda);
+
+// Ruta para marcar un pedido como 'recogido' (driver recogió el pedido)
+// También debe ser protegida.
+router.put('/pedidos-app/recogido/:id', checkAuth, marcarPedidoAppRecogido);
+
+// Ruta para marcar un pedido como 'en_destino' (driver llegó a la dirección del cliente)
+// También debe ser protegida.
+router.put('/pedidos-app/en-destino/:id',  checkAuth, marcarPedidoEnDestino);
+
+// Ruta para marcar un pedido como 'entregado' (pedido finalizado)
+// También debe ser protegida.
+router.put('/pedidos-app/entregado/:id',  checkAuth,   marcarPedidoAppEntregado);
 
 export default router;

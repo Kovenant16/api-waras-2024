@@ -4,7 +4,8 @@ import PedidoApp from '../models/PedidoApp.js';
 import mongoose from 'mongoose';
 import { getNextSequence } from '../utils/sequenceGenerator.js'
 
-import { sendNewOrderNotificationToMotorizados } from '../services/notificationService.js';
+import { sendNewOrderNotificationToMotorizados, sendNotificationToClient } from '../services/notificationService.js';
+import Cliente from '../models/Cliente.js';
 
 // import Usuario from '../models/usuario.js'; // Si necesitas interactuar con el modelo de usuario, impórtalo
 
@@ -100,7 +101,6 @@ const crearPedidoApp = async (req, res) => {
         res.status(500).json({ msg: "Error interno del servidor al crear el pedido de la aplicación." });
     }
 };
-
 
 const obtenerPedidoAppPorId = async (req, res) => {
     try {
@@ -638,7 +638,6 @@ const tomarPedido = async (req, res) => {
     }
 };
 
-
 export const obtenerUltimosPedidosApp = async (req, res) => {
     try {
         // IMPORTANTE: Recuerda obtener el userId de forma segura, preferiblemente desde req.user._id
@@ -689,6 +688,226 @@ export const obtenerUltimosPedidosApp = async (req, res) => {
         res.status(500).json({ msg: "Error interno del servidor al obtener los pedidos." });
     }
 };
+
+export const getClientFcmTokens = async (clientId) => {
+    try {
+        const client = await Cliente.findById(clientId);
+        if (client && client.fcmTokens && client.fcmTokens.length > 0) {
+            // Mapea el array de objetos a un array de solo los strings de los tokens
+            return client.fcmTokens.map(fcmTokenObj => fcmTokenObj.token);
+        }
+        return []; // Retorna un array vacío si no hay cliente o tokens
+    } catch (error) {
+        console.error(`Error al obtener los tokens FCM para el cliente ${clientId}:`, error);
+        return [];
+    }
+};
+
+export const marcarPedidoAppEnTienda = async (req, res) => {
+    const { id } = req.params; // ID del Pedido
+
+    try {
+        const pedido = await PedidoApp.findById(id);
+
+        if (!pedido) {
+            return res.status(404).json({ msg: "Pedido no encontrado." });
+        }
+
+        if (pedido.estadoPedido === 'en_tienda') {
+            return res.status(400).json({ msg: "El pedido ya está marcado como 'en tienda'." });
+        }
+        
+
+        pedido.estadoPedido = 'en_tienda';
+        pedido.horaLlegadaRecojo = new Date();
+        await pedido.save();
+
+        // Enviar notificación FCM al cliente
+        const clientFcmTokens = await getClientFcmTokens(pedido.userId); // Obtener todos los tokens
+        if (clientFcmTokens.length > 0) {
+            try {
+                await sendNotificationToClient(
+                    clientFcmTokens, // Pasar el array de tokens
+                    "¡Driver en tienda!",
+                    `Tu motorizado ha llegado a la tienda y está esperando tu pedido.`,
+                    {
+                        orderId: pedido._id.toString(),
+                        numeroPedido: pedido.numeroPedido.toString(),
+                        status: 'en_tienda'
+                    }
+                );
+                console.log(`[appPedidoController] Notificación 'en_tienda' enviada al cliente para pedido ${pedido.numeroPedido}.`);
+            } catch (notificationError) {
+                console.error(`[appPedidoController] Error al enviar notificación 'en_tienda' para ${pedido.numeroPedido}:`, notificationError);
+            }
+        } else {
+            console.warn(`[appPedidoController] No se encontraron FCM tokens para el cliente ${pedido.userId} del pedido ${pedido.numeroPedido}.`);
+        }
+
+        res.status(200).json({ msg: "Estado del pedido actualizado a 'en_tienda' y cliente notificado.", pedido });
+
+    } catch (error) {
+        console.error("Error al marcar pedido en tienda:", error);
+        res.status(500).json({ msg: "Error interno del servidor al actualizar el pedido." });
+    }
+};
+
+export const marcarPedidoAppRecogido = async (req, res) => {
+    const { id } = req.params; // ID del Pedido
+
+    try {
+        const pedido = await PedidoApp.findById(id);
+
+        if (!pedido) {
+            return res.status(404).json({ msg: "Pedido no encontrado." });
+        }
+
+        if (pedido.estadoPedido === 'recogido') {
+            return res.status(400).json({ msg: "El pedido ya está marcado como 'recogido'." });
+        }
+        if (pedido.estadoPedido !== 'en_tienda') {
+            console.warn(`[marcarPedidoAppRecogido] Intento de marcar el pedido ${pedido.numeroPedido} como 'recogido' desde un estado inesperado: ${pedido.estadoPedido}`);
+        }
+
+        pedido.estadoPedido = 'recogido';
+        pedido.horaRecojo = new Date();
+        await pedido.save();
+
+        // Enviar notificación FCM al cliente
+        const clientFcmTokens = await getClientFcmTokens(pedido.userId);
+        if (clientFcmTokens.length > 0) {
+            try {
+                await sendNotificationToClient(
+                    clientFcmTokens,
+                    "¡Pedido en Camino!",
+                    `¡Tu motorizado ya recogió tu pedido #${pedido.numeroPedido} y se dirige hacia ti!`,
+                    {
+                        orderId: pedido._id.toString(),
+                        numeroPedido: pedido.numeroPedido.toString(),
+                        status: 'recogido'
+                    }
+                );
+                console.log(`[appPedidoController] Notificación 'recogido' enviada al cliente para pedido ${pedido.numeroPedido}.`);
+            } catch (notificationError) {
+                console.error(`[appPedidoController] Error al enviar notificación 'recogido' para ${pedido.numeroPedido}:`, notificationError);
+            }
+        } else {
+            console.warn(`[appPedidoController] No se encontraron FCM tokens para el cliente ${pedido.userId} del pedido ${pedido.numeroPedido}.`);
+        }
+
+        res.status(200).json({ msg: "Estado del pedido actualizado a 'recogido' y cliente notificado.", pedido });
+
+    } catch (error) {
+        console.error("Error al marcar pedido recogido:", error);
+        res.status(500).json({ msg: "Error interno del servidor al actualizar el pedido." });
+    }
+};
+
+export const marcarPedidoEnDestino = async (req, res) => {
+    const { id } = req.params; // ID del Pedido
+
+    try {
+        const pedido = await PedidoApp.findById(id);
+
+        if (!pedido) {
+            return res.status(404).json({ msg: "Pedido no encontrado." });
+        }
+
+        if (pedido.estadoPedido === 'en_destino') {
+            return res.status(400).json({ msg: "El pedido ya está marcado como 'en destino'." });
+        }
+        if (pedido.estadoPedido !== 'recogido') {
+            console.warn(`[marcarPedidoEnDestino] Intento de marcar el pedido ${pedido.numeroPedido} como 'en_destino' desde un estado inesperado: ${pedido.estadoPedido}`);
+        }
+
+        pedido.estadoPedido = 'en_destino';
+        pedido.horaLlegadaDestino = new Date();
+        await pedido.save();
+
+        // Enviar notificación FCM al cliente
+        const clientFcmTokens = await getClientFcmTokens(pedido.userId);
+        if (clientFcmTokens.length > 0) {
+            try {
+                await sendNotificationToClient(
+                    clientFcmTokens,
+                    "¡Tu Pedido Llegó!",
+                    `¡Tu motorizado ya está en tu dirección (${pedido.deliveryAddress.fullAddress}) con tu pedido #${pedido.numeroPedido}! Por favor, recibelo.`,
+                    {
+                        orderId: pedido._id.toString(),
+                        numeroPedido: pedido.numeroPedido.toString(),
+                        status: 'en_destino'
+                    }
+                );
+                console.log(`[appPedidoController] Notificación 'en_destino' enviada al cliente para pedido ${pedido.numeroPedido}.`);
+            } catch (notificationError) {
+                console.error(`[appPedidoController] Error al enviar notificación 'en_destino' para ${pedido.numeroPedido}:`, notificationError);
+            }
+        } else {
+            console.warn(`[appPedidoController] No se encontraron FCM tokens para el cliente ${pedido.userId} del pedido ${pedido.numeroPedido}.`);
+        }
+
+        res.status(200).json({ msg: "Estado del pedido actualizado a 'en_destino' y cliente notificado.", pedido });
+
+    } catch (error) {
+        console.error("Error al marcar pedido en destino:", error);
+        res.status(500).json({ msg: "Error interno del servidor al actualizar el pedido." });
+    }
+};
+
+export const marcarPedidoAppEntregado = async (req, res) => {
+    const { id } = req.params; // ID del Pedido
+
+    try {
+        const pedido = await PedidoApp.findById(id);
+
+        if (!pedido) {
+            return res.status(404).json({ msg: "Pedido no encontrado." });
+        }
+
+        if (pedido.estadoPedido === 'entregado') {
+            return res.status(400).json({ msg: "El pedido ya está marcado como 'entregado'." });
+        }
+        if (pedido.estadoPedido !== 'en_destino') {
+            console.warn(`[marcarEntregado] Intento de marcar el pedido ${pedido.numeroPedido} como 'entregado' desde un estado inesperado: ${pedido.estadoPedido}`);
+        }
+
+        pedido.estadoPedido = 'entregado';
+        pedido.horaEntrega = new Date();
+        await pedido.save();
+
+        // Enviar notificación FCM al cliente
+        const clientFcmTokens = await getClientFcmTokens(pedido.userId);
+        if (clientFcmTokens.length > 0) {
+            try {
+                await sendNotificationToClient(
+                    clientFcmTokens,
+                    "¡Pedido Entregado!",
+                    `¡Tu pedido #${pedido.numeroPedido} ha sido entregado con éxito! ¡Esperamos verte de nuevo pronto!`,
+                    {
+                        orderId: pedido._id.toString(),
+                        numeroPedido: pedido.numeroPedido.toString(),
+                        status: 'entregado'
+                    }
+                );
+                console.log(`[appPedidoController] Notificación 'entregado' enviada al cliente para pedido ${pedido.numeroPedido}.`);
+            } catch (notificationError) {
+                console.error(`[appPedidoController] Error al enviar notificación 'entregado' para ${pedido.numeroPedido}:`, notificationError);
+            }
+        } else {
+            console.warn(`[appPedidoController] No se encontraron FCM tokens para el cliente ${pedido.userId} del pedido ${pedido.numeroPedido}.`);
+        }
+
+        res.status(200).json({ msg: "Pedido entregado exitosamente y cliente notificado.", pedido });
+
+    } catch (error) {
+        console.error("Error al marcar pedido como entregado:", error);
+        res.status(500).json({ msg: "Error interno del servidor al actualizar el pedido." });
+    }
+};
+
+
+
+
 
 
 
