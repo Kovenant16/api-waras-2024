@@ -121,11 +121,17 @@ export const sendNotificationToTopic = async (topic, title, body, data = {}) => 
  * @param {object} options - (Opcional) Opciones FCM adicionales (ej. priority, timeToLive).
  */
 export const sendNewOrderNotificationToMotorizados = async (title, body, data = {}, options = {}) => {
+
+    console.log("sending new order notification to motorizados");
+    
     try {
         const motorizados = await Usuario.find({
             rol: 'motorizado',
             activo: true
         });
+
+        
+        
 
         if (motorizados.length === 0) {
             console.log('[Notification Service] No se encontraron motorizados activos para enviar la notificación.');
