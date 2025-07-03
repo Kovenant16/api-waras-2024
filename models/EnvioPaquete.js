@@ -131,6 +131,28 @@ const envioPaqueteSchema = mongoose.Schema(
         horaLlegadaLocalDriver: {
             type: String, // Hora en que el driver llegó al punto de recojo
         },
+        // --- Nuevos campos de tiempo para el seguimiento del estado ---
+        horaAceptacion: { // Hora en que el driver aceptó el pedido
+            type: Date,
+            default: null,
+        },
+        horaLlegadaRecojo: { // Hora en que el driver llegó al punto de recojo
+            type: Date,
+            default: null,
+        },
+        horaRecojo: { // Hora en que el paquete fue recogido
+            type: Date,
+            default: null,
+        },
+        horaLlegadaDestino: { // Hora en que el driver llegó al punto de entrega
+            type: Date,
+            default: null,
+        },
+        horaEntrega: { // Hora real en que se entregó el paquete
+            type: Date,
+            default: null,
+        },
+        // --- FIN Nuevos campos de tiempo ---
         horaEntregaEstimada: { // Si tienes un cálculo más preciso del tiempo de entrega total
             type: String,
         },
