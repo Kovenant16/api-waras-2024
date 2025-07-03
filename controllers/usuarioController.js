@@ -698,7 +698,7 @@ export const desactivarDriver = async (req, res) => {
 };
 
 const liberarUsuario = async (req, res) => {
-    const  id  = req.pars;
+    const { id } = req.params;
 
     try {
         const usuario = await Usuario.findById(id);
