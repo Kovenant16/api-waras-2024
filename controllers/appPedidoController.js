@@ -703,6 +703,55 @@ export const getClientFcmTokens = async (clientId) => {
     }
 };
 
+export const marcarPedidoAppAceptado = async (req, res) => {
+    const { id } = req.params; // ID del Pedido
+
+    try {
+        const pedido = await PedidoApp.findById(id);
+
+        if (!pedido) {
+            return res.status(404).json({ msg: "Pedido no encontrado." });
+        }
+
+        if (pedido.estadoPedido === 'driver_asignado') {
+            return res.status(400).json({ msg: "El pedido ya está marcado como 'driver_asignado'." });
+        }
+        
+
+        pedido.estadoPedido = 'driver_asignado';
+        pedido.horaAceptacion = new Date();
+        await pedido.save();
+
+        // Enviar notificación FCM al cliente
+        const clientFcmTokens = await getClientFcmTokens(pedido.userId); // Obtener todos los tokens
+        if (clientFcmTokens.length > 0) {
+            try {
+                await sendNotificationToClient(
+                    clientFcmTokens, // Pasar el array de tokens
+                    "¡Pedido aceptado!",
+                    `Un driver acepto tu pedido, pronto se estará comunicando contigo.`,
+                    {
+                        orderId: pedido._id.toString(),
+                        numeroPedido: pedido.numeroPedido.toString(),
+                        status: 'driver asignado'
+                    }
+                );
+                console.log(`[appPedidoController] Notificación 'aceptado' enviada al cliente para pedido ${pedido.numeroPedido}.`);
+            } catch (notificationError) {
+                console.error(`[appPedidoController] Error al enviar notificación 'aceptado' para ${pedido.numeroPedido}:`, notificationError);
+            }
+        } else {
+            console.warn(`[appPedidoController] No se encontraron FCM tokens para el cliente ${pedido.userId} del pedido ${pedido.numeroPedido}.`);
+        }
+
+        res.status(200).json({ msg: "Estado del pedido actualizado a 'driver_asignado' y cliente notificado.", pedido });
+
+    } catch (error) {
+        console.error("Error al marcar pedido en tienda:", error);
+        res.status(500).json({ msg: "Error interno del servidor al actualizar el pedido." });
+    }
+};
+
 export const marcarPedidoAppEnTienda = async (req, res) => {
     const { id } = req.params; // ID del Pedido
 

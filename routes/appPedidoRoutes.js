@@ -12,7 +12,8 @@ import {
     marcarPedidoAppEnTienda,
     marcarPedidoAppRecogido,
     marcarPedidoEnDestino,
-    marcarPedidoAppEntregado
+    marcarPedidoAppEntregado,
+    marcarPedidoAppAceptado
 } from '../controllers/appPedidoController.js';
 import checkAuth from '../middleware/checkAuth.js'; // Asegúrate de tener un middleware de autenticación si es necesario
 
@@ -68,6 +69,9 @@ router.get('/ultimos/:userId', obtenerUltimosPedidosApp);
 // Idealmente, esta ruta debería ser protegida por autenticación
 // y posiblemente por un middleware que verifique si el usuario es un driver o admin.
 router.put('/pedidos-app/en-tienda/:id',checkAuth, marcarPedidoAppEnTienda);
+
+
+router.put('/pedidos-app/driver-asignado/:id',checkAuth, marcarPedidoAppAceptado);
 
 // Ruta para marcar un pedido como 'recogido' (driver recogió el pedido)
 // También debe ser protegida.
