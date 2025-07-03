@@ -647,8 +647,58 @@ const activarUsuario = async (req, res) => {
     }
 };
 
+export const activarDriver = async (req, res) => {
+    const  id  = req.usuario._id;
+
+    try {
+        const usuario = await Usuario.findById(id);
+
+        if (!usuario) {
+            const error = new Error("Usuario no encontrado");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        usuario.activo = true;
+        usuario.horaActivacion = new Date(); // Registra la hora actual
+        usuario.estadoUsuario = "Libre";
+        await usuario.save();
+
+        // Obtener motorizados activos y enviar mensaje de Telegram
+        await obtenerMotorizadosActivosYEnviarMensaje();
+
+        res.json({ msg: "Usuario activado correctamente" });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ msg: "Error al activar el usuario" });
+    }
+};
+
+export const desactivarDriver = async (req, res) => {
+    const  id  = req.usuario._id;
+    try {
+        const usuario = await Usuario.findById(id);
+
+        if (!usuario) {
+            const error = new Error("Usuario no encontrado");
+            return res.status(404).json({ msg: error.message });
+        }
+
+        usuario.activo = false;
+        usuario.estadoUsuario = "Inactivo"
+        await usuario.save();
+
+        // Obtener motorizados activos y enviar mensaje de Telegram
+        await obtenerMotorizadosActivosYEnviarMensaje();
+
+        res.json({ msg: "Usuario desactivado correctamente" });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ msg: "Error al desactivar el usuario" });
+    }
+};
+
 const liberarUsuario = async (req, res) => {
-    const { id } = req.params;
+    const  id  = req.pars;
 
     try {
         const usuario = await Usuario.findById(id);
