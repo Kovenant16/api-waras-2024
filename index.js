@@ -26,6 +26,7 @@ import { Server as WebsocketServer } from 'socket.io';
 
 // --- NUEVAS IMPORTACIONES PARA FIREBASE ADMIN ---
 import admin from 'firebase-admin';
+import TraficoRuta from './models/TraficoRuta.js';
 // Eliminamos path, fs y fileURLToPath ya que no leeremos un archivo localmente en Render
 // import path from 'path';
 // import fs from 'fs';
@@ -104,6 +105,92 @@ if (process.env.FIREBASE_ADMIN_SDK_CONFIG) {
 const app = express();
 app.use(express.json());
 app.use(cors());
+
+
+
+
+
+
+app.use(async (req, res, next) => {
+    const ruta = req.originalUrl.split('?')[0];
+    const metodo = req.method;
+    const start = process.hrtime.bigint();
+    const chunks = [];
+
+    const originalWrite = res.write;
+    const originalEnd = res.end;
+
+    res.write = function (chunk, ...args) {
+        if (chunk) chunks.push(Buffer.from(chunk));
+        return originalWrite.apply(res, [chunk, ...args]);
+    };
+
+    res.end = async function (chunk, ...args) {
+        if (chunk) chunks.push(Buffer.from(chunk));
+        const body = Buffer.concat(chunks);
+        const sizeKB = body.length / 1024;
+        const duracionMs = Number(process.hrtime.bigint() - start) / 1e6;
+
+        try {
+            await TraficoRuta.create({
+                ruta,
+                metodo,
+                tamanoKB: sizeKB,
+                duracionMs
+            });
+        } catch (error) {
+            console.error('❌ Error guardando tráfico en MongoDB:', error.message);
+        }
+
+        return originalEnd.apply(res, [chunk, ...args]);
+    };
+
+    next();
+});
+
+app.get('/api/stats/trafico', async (req, res) => {
+    try {
+        const { desde, hasta } = req.query;
+
+        // Convertimos a fechas
+        const fechaDesde = desde ? new Date(desde) : new Date(Date.now() - 24 * 60 * 60 * 1000); // 24h por defecto
+        const fechaHasta = hasta ? new Date(hasta) : new Date(); // Ahora por defecto
+
+        const stats = await TraficoRuta.aggregate([
+            {
+                $match: {
+                    timestamp: {
+                        $gte: fechaDesde,
+                        $lte: fechaHasta
+                    }
+                }
+            },
+            {
+                $group: {
+                    _id: {
+                        dia: { $dateToString: { format: "%Y-%m-%d", date: "$timestamp" } },
+                        hora: { $hour: "$timestamp" },
+                        ruta: "$ruta",
+                        metodo: "$metodo"
+                    },
+                    totalSolicitudes: { $sum: 1 },
+                    totalKB: { $sum: "$tamanoKB" },
+                    promedioMs: { $avg: "$duracionMs" }
+                }
+            },
+            { $sort: { "_id.dia": -1, "_id.hora": -1 } }
+        ]);
+
+        res.json(stats);
+    } catch (error) {
+        console.error("❌ Error al obtener estadísticas por fecha:", error.message);
+        res.status(500).json({ msg: "Error al obtener datos" });
+    }
+});
+
+
+
+
 
 // --- Tus rutas existentes (mantener) ---
 app.use("/api/usuarios", usuarioRoutes);
