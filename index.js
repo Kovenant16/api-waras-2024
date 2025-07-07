@@ -150,13 +150,12 @@ app.use(async (req, res, next) => {
 
 app.get('/api/stats/trafico', async (req, res) => {
     try {
-        const { desde, hasta } = req.query;
+        const { desde, hasta, modo } = req.query;
 
-        // Convertimos a fechas
-        const fechaDesde = desde ? new Date(desde) : new Date(Date.now() - 24 * 60 * 60 * 1000); // 24h por defecto
-        const fechaHasta = hasta ? new Date(hasta) : new Date(); // Ahora por defecto
+        const fechaDesde = desde ? new Date(desde) : new Date(Date.now() - 24 * 60 * 60 * 1000); // Por defecto: últimas 24h
+        const fechaHasta = hasta ? new Date(hasta) : new Date(); // Por defecto: ahora
 
-        const stats = await TraficoRuta.aggregate([
+        let pipeline = [
             {
                 $match: {
                     timestamp: {
@@ -164,29 +163,80 @@ app.get('/api/stats/trafico', async (req, res) => {
                         $lte: fechaHasta
                     }
                 }
-            },
-            {
-                $group: {
-                    _id: {
-                        dia: { $dateToString: { format: "%Y-%m-%d", date: "$timestamp" } },
-                        hora: { $hour: "$timestamp" },
-                        ruta: "$ruta",
-                        metodo: "$metodo"
-                    },
-                    totalSolicitudes: { $sum: 1 },
-                    totalKB: { $sum: "$tamanoKB" },
-                    promedioMs: { $avg: "$duracionMs" }
-                }
-            },
-            { $sort: { "_id.dia": -1, "_id.hora": -1 } }
-        ]);
+            }
+        ];
 
+        switch (modo) {
+            case 'por-dia':
+                pipeline.push({
+                    $group: {
+                        _id: {
+                            dia: { $dateToString: { format: "%Y-%m-%d", date: "$timestamp" } }
+                        },
+                        totalSolicitudes: { $sum: 1 },
+                        totalKB: { $sum: "$tamanoKB" },
+                        promedioMs: { $avg: "$duracionMs" }
+                    }
+                });
+                break;
+
+            case 'por-hora':
+                pipeline.push({
+                    $group: {
+                        _id: {
+                            dia: { $dateToString: { format: "%Y-%m-%d", date: "$timestamp" } },
+                            hora: { $hour: "$timestamp" }
+                        },
+                        totalSolicitudes: { $sum: 1 },
+                        totalKB: { $sum: "$tamanoKB" },
+                        promedioMs: { $avg: "$duracionMs" }
+                    }
+                });
+                break;
+
+            case 'top-rutas':
+                pipeline.push({
+                    $group: {
+                        _id: {
+                            ruta: "$ruta",
+                            metodo: "$metodo"
+                        },
+                        totalSolicitudes: { $sum: 1 },
+                        totalKB: { $sum: "$tamanoKB" },
+                        promedioMs: { $avg: "$duracionMs" }
+                    }
+                });
+                pipeline.push({ $sort: { totalSolicitudes: -1 } });
+                pipeline.push({ $limit: 5 });
+                break;
+
+            default:
+                // Agrupación completa por ruta + hora
+                pipeline.push({
+                    $group: {
+                        _id: {
+                            dia: { $dateToString: { format: "%Y-%m-%d", date: "$timestamp" } },
+                            hora: { $hour: "$timestamp" },
+                            ruta: "$ruta",
+                            metodo: "$metodo"
+                        },
+                        totalSolicitudes: { $sum: 1 },
+                        totalKB: { $sum: "$tamanoKB" },
+                        promedioMs: { $avg: "$duracionMs" }
+                    }
+                });
+        }
+
+        pipeline.push({ $sort: { "_id.dia": -1, "_id.hora": -1 } });
+
+        const stats = await TraficoRuta.aggregate(pipeline);
         res.json(stats);
     } catch (error) {
-        console.error("❌ Error al obtener estadísticas por fecha:", error.message);
-        res.status(500).json({ msg: "Error al obtener datos" });
+        console.error("❌ Error en /api/stats/trafico:", error.message);
+        res.status(500).json({ msg: "Error interno" });
     }
 });
+
 
 
 
