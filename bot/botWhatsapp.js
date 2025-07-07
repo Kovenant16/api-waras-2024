@@ -57,10 +57,10 @@ export async function startSock() {
             if (!msg.message || msg.key.fromMe) return;
 
             const remoteJid = msg.key.remoteJid;
-            console.log("remote Jid", remoteJid);
 
+            if (remoteJid === 'status@broadcast') return; // ⛔️ Ignorar mensajes de estado del sistema
             if (remoteJid.endsWith('@g.us')) return; // Ignorar mensajes de grupos
-
+            console.log("remote Jid", remoteJid);
             console.log('ℹ️ Estado de la conexión al recibir un mensaje:', isConnected);
 
             const location = msg.message.locationMessage;
