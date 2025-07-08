@@ -3391,15 +3391,15 @@ export const getExpressOrderById = async (req, res) => {
             storeId: expressOrder.local?.[0]?._id?.toString() || null,
             nombre: expressOrder.local?.[0]?.nombre || 'Local desconocido',
             gps: expressOrder.local?.[0]?.gps || null,
-            direccion: expressOrder.local?.[0]?.direccion || null,
-            telefono: expressOrder.local?.[0]?.telefonoUno || null,
+            direccion: expressOrder.local?.[0]?.direccion || "",
+            telefono: expressOrder.local?.[0]?.telefonoUno || "",
         };
 
         const mappedExpressOrder = {
             id: expressOrder._id.toString(),
             tipoPedido: 'express',
             estadoPedido: expressOrder.estadoPedido,
-            clientName: 'Cliente Express', // En Express no se popula el cliente directamente
+            clientName: '', // En Express no se popula el cliente directamente
             clientPhone: clientPhone,
             deliveryCost: deliveryCost,
             medioDePago: expressOrder.medioDePago,
@@ -3409,8 +3409,8 @@ export const getExpressOrderById = async (req, res) => {
             deliveryAddressDetails: {
                 fullAddress: expressOrder.direccion || '',
                 gps: expressOrder.gps || '0,0',
-                name: null,
-                reference: null,
+                name: "",
+                reference: "",
             },
             storeDetails: storeDetails,
             createdAt: expressOrder.createdAt?.toISOString() || new Date(0).toISOString(),
