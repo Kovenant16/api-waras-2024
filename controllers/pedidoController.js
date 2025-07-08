@@ -3268,7 +3268,247 @@ export const getDriverOrdersByDate = async (req, res) => {
     }
 };
 
+//funciones para obtener pedido por su id
+export const getAppOrderById = async (req, res) => {
+    const { id } = req.params; // Se asume que el ID viene en los parámetros de la URL
 
+    if (!id) {
+        console.error(`❌ Error: No se proporcionó el ID del pedido de la App.`);
+        return res.status(400).json({
+            msg: 'Bad Request: ID del pedido de la App no proporcionado.',
+        });
+    }
+
+    try {
+        console.log(`🚀 Iniciando búsqueda de Pedido de App con ID: ${id}`);
+        const appOrder = await PedidoApp.findById(id)
+            .populate('userId', 'nombre telefono')
+            .populate('orderItems.productId')
+            .populate({
+                path: 'storeDetails.storeId',
+                select: 'nombre gps direccion telefonoUno'
+            })
+            .select("numeroPedido subtotal porcentPago deliveryCost totalAmount notes orderItems orderDate deliveryAddress storeDetails paymentMethod estadoPedido estadoTienda createdAt driver");
+
+        if (!appOrder) {
+            console.log(`⚠️ Pedido de App con ID ${id} no encontrado.`);
+            return res.status(404).json({
+                msg: 'Pedido de la App no encontrado.',
+            });
+        }
+
+        const mappedAppOrder = {
+            id: appOrder._id.toString(),
+            tipoPedido: 'app',
+            estadoPedido: appOrder.estadoPedido,
+            estadoTienda: appOrder.estadoTienda,
+            clientName: appOrder.userId?.nombre || 'N/A',
+            clientPhone: appOrder.userId?.telefono || 'N/A',
+            deliveryCost: appOrder.deliveryCost || 0,
+            medioDePago: appOrder.paymentMethod || 'efectivo',
+            totalAmount: appOrder.totalAmount || 0,
+            notes: appOrder.notes || '',
+            comVenta: appOrder.orderItems?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0,
+            orderItems: appOrder.orderItems?.map(item => ({
+                productId: item.productId?._id?.toString() || '',
+                productName: item.productId?.nombre || 'N/A',
+                productPrice: item.productId?.precio || 0,
+                category: item.productId?.categoria || 'N/A',
+                quantity: item.quantity || 0,
+                unitPrice: item.unitPrice || 0,
+                totalItemPrice: item.totalItemPrice || 0,
+                selectedOptions: item.selectedOptions || [],
+            })) || [],
+            orderDate: appOrder.orderDate?.toISOString() || new Date(0).toISOString(),
+            deliveryAddressDetails: {
+                name: appOrder.deliveryAddress?.name || null,
+                fullAddress: appOrder.deliveryAddress?.fullAddress || '',
+                gps: appOrder.deliveryAddress?.gps || '0,0',
+                reference: appOrder.deliveryAddress?.reference || null,
+            },
+            storeDetails: {
+                storeId: appOrder.storeDetails?.storeId?._id?.toString() || null,
+                nombre: appOrder.storeDetails?.storeId?.nombre || 'Tienda Desconocida',
+                gps: appOrder.storeDetails?.storeId?.gps || null,
+                direccion: appOrder.storeDetails?.storeId?.direccion || null,
+                telefono: appOrder.storeDetails?.storeId?.telefonoUno || null,
+            },
+            createdAt: appOrder.createdAt?.toISOString() || new Date(0).toISOString(),
+            numeroPedido: appOrder.numeroPedido || null,
+            subTotal: appOrder.subtotal || 0,
+            porcentPago: appOrder.porcentPago || 0,
+            driver: appOrder.driver?.toString(),
+        };
+
+        console.log(`✅ Pedido de App con ID ${id} encontrado.`);
+        res.status(200).json({
+            msg: "Pedido de App encontrado.",
+            pedido: mappedAppOrder
+        });
+
+    } catch (error) {
+        console.error(`❌ Error al obtener pedido de App con ID ${id}: ${error.message}`);
+        console.error('Pila de errores:', error.stack);
+        res.status(500).json({
+            msg: 'Error interno del servidor al obtener el pedido de la App.',
+        });
+    }
+};
+
+export const getExpressOrderById = async (req, res) => {
+    const { id } = req.params; // Se asume que el ID viene en los parámetros de la URL
+
+    if (!id) {
+        console.error(`❌ Error: No se proporcionó el ID del pedido Express.`);
+        return res.status(400).json({
+            msg: 'Bad Request: ID del pedido Express no proporcionado.',
+        });
+    }
+
+    try {
+        console.log(`🚀 Iniciando búsqueda de Pedido Express con ID: ${id}`);
+        const expressOrder = await Pedido.findById(id)
+            .populate({ path: "generadoPor", select: "nombre" })
+            .populate({ path: "local", select: "nombre gps direccion telefonoUno" })
+            .select("cobrar comVenta porcentPago delivery direccion fecha hora local gps telefono detallePedido medioDePago estadoPedido createdAt generadoPor driver");
+
+        if (!expressOrder) {
+            console.log(`⚠️ Pedido Express con ID ${id} no encontrado.`);
+            return res.status(404).json({
+                msg: 'Pedido Express no encontrado.',
+            });
+        }
+
+        const clientPhone = expressOrder.telefono || 'N/A';
+        const deliveryCost = parseFloat(expressOrder.delivery || '0');
+        const cobrar = parseFloat(expressOrder.cobrar || '0');
+        const comVenta = parseFloat(expressOrder.comVenta || '0');
+        const porcentPago = parseFloat(expressOrder.porcentPago || '0');
+        const generadoPorNombre = expressOrder.generadoPor?.nombre || 'N/A';
+
+        const orderDateISO = new Date(`${expressOrder.fecha}T${expressOrder.hora}:00.000Z`).toISOString();
+        const storeDetails = {
+            storeId: expressOrder.local?.[0]?._id?.toString() || null,
+            nombre: expressOrder.local?.[0]?.nombre || 'Local desconocido',
+            gps: expressOrder.local?.[0]?.gps || null,
+            direccion: expressOrder.local?.[0]?.direccion || null,
+            telefono: expressOrder.local?.[0]?.telefonoUno || null,
+        };
+
+        const mappedExpressOrder = {
+            id: expressOrder._id.toString(),
+            tipoPedido: 'express',
+            estadoPedido: expressOrder.estadoPedido,
+            clientName: 'Cliente Express', // En Express no se popula el cliente directamente
+            clientPhone: clientPhone,
+            deliveryCost: deliveryCost,
+            medioDePago: expressOrder.medioDePago,
+            detail: expressOrder.detallePedido || '',
+            orderItems: [], // Tu modelo Pedido (Express) no tiene orderItems como PedidoApp
+            orderDate: orderDateISO,
+            deliveryAddressDetails: {
+                fullAddress: expressOrder.direccion || '',
+                gps: expressOrder.gps || '0,0',
+                name: null,
+                reference: null,
+            },
+            storeDetails: storeDetails,
+            createdAt: expressOrder.createdAt?.toISOString() || new Date(0).toISOString(),
+            cobrar: cobrar,
+            comVenta: comVenta,
+            porcentPago: porcentPago,
+            generadoPorName: generadoPorNombre,
+            driver: expressOrder.driver?.toString(),
+        };
+
+        console.log(`✅ Pedido Express con ID ${id} encontrado.`);
+        res.status(200).json({
+            msg: "Pedido Express encontrado.",
+            pedido: mappedExpressOrder
+        });
+
+    } catch (error) {
+        console.error(`❌ Error al obtener pedido Express con ID ${id}: ${error.message}`);
+        console.error('Pila de errores:', error.stack);
+        res.status(500).json({
+            msg: 'Error interno del servidor al obtener el pedido Express.',
+        });
+    }
+};
+
+export const getPackageOrderById = async (req, res) => {
+    const { id } = req.params; // Se asume que el ID viene en los parámetros de la URL
+
+    if (!id) {
+        console.error(`❌ Error: No se proporcionó el ID del pedido de Paquetería.`);
+        return res.status(400).json({
+            msg: 'Bad Request: ID del pedido de Paquetería no proporcionado.',
+        });
+    }
+
+    try {
+        console.log(`🚀 Iniciando búsqueda de Pedido de Paquetería con ID: ${id}`);
+        const packageOrder = await EnvioPaquete.findById(id)
+            .populate('cliente', 'nombre telefono')
+            .select("costoEnvio distanciaEnvioKm medioDePago quienPagaEnvio horaRecojoEstimada notasPedido recojo entrega fechaCreacion estadoPedido createdAt driverAsignado");
+
+        if (!packageOrder) {
+            console.log(`⚠️ Pedido de Paquetería con ID ${id} no encontrado.`);
+            return res.status(404).json({
+                msg: 'Pedido de Paquetería no encontrado.',
+            });
+        }
+
+        const mappedPackageOrder = {
+            id: packageOrder._id.toString(),
+            tipoPedido: 'paqueteria',
+            estadoPedido: packageOrder.estadoPedido,
+            clientName: packageOrder.cliente?.nombre || 'N/A',
+            clientPhone: packageOrder.cliente?.telefono || 'N/A',
+            deliveryCost: packageOrder.costoEnvio || 0,
+            distanceInKm: packageOrder.distanciaEnvioKm || 0,
+            medioDePago: packageOrder.medioDePago || 'efectivo',
+            porcentPago: packageOrder.porcentPago || 0.8,
+            recojoDetails: {
+                direccion: packageOrder.recojo?.direccion || '',
+                referencia: packageOrder.recojo?.referencia || null,
+                telefonoContacto: packageOrder.recojo?.telefonoContacto || null,
+                detallesAdicionales: packageOrder.recojo?.detallesAdicionales || null,
+                gps: (packageOrder.recojo?.gps?.latitude && packageOrder.recojo?.gps?.longitude)
+                    ? `${packageOrder.recojo.gps.latitude},${packageOrder.recojo.gps.longitude}`
+                    : '0,0',
+            },
+            deliveryAddressDetails: {
+                fullAddress: packageOrder.entrega?.direccion || '',
+                gps: (packageOrder.entrega?.gps?.latitude && packageOrder.entrega?.gps?.longitude)
+                    ? `${packageOrder.entrega.gps.latitude},${packageOrder.entrega.gps.longitude}`
+                    : '0,0',
+                name: null,
+                reference: packageOrder.entrega?.referencia || null,
+                telefonoContacto: packageOrder.entrega?.telefonoContacto || null,
+                detallesAdicionales: packageOrder.entrega?.detallesAdicionales || null,
+            },
+            notes: packageOrder.notasPedido || '',
+            orderDate: packageOrder.fechaCreacion?.toISOString() || new Date(0).toISOString(),
+            horaRecojoEstimada: packageOrder.horaRecojoEstimada || null,
+            createdAt: packageOrder.createdAt?.toISOString() || new Date(0).toISOString(),
+            driverAsignado: packageOrder.driverAsignado?.toString(),
+        };
+
+        console.log(`✅ Pedido de Paquetería con ID ${id} encontrado.`);
+        res.status(200).json({
+            msg: "Pedido de Paquetería encontrado.",
+            pedido: mappedPackageOrder
+        });
+
+    } catch (error) {
+        console.error(`❌ Error al obtener pedido de Paquetería con ID ${id}: ${error.message}`);
+        console.error('Pila de errores:', error.stack);
+        res.status(500).json({
+            msg: 'Error interno del servidor al obtener el pedido de Paquetería.',
+        });
+    }
+};
 
 
 
