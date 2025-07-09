@@ -7,6 +7,7 @@ import { getNextSequence } from '../utils/sequenceGenerator.js'
 import { sendNewOrderNotificationToMotorizados, sendNotificationToClient } from '../services/notificationService.js';
 import Cliente from '../models/Cliente.js';
 
+
 // import Usuario from '../models/usuario.js'; // Si necesitas interactuar con el modelo de usuario, impórtalo
 
 const crearPedidoApp = async (req, res) => {
@@ -954,6 +955,114 @@ export const marcarPedidoAppEntregado = async (req, res) => {
     }
 };
 
+export const getPedidosActivosPorUsuario = async (req, res) => {
+    try {
+        // En un entorno de producción, el userId debería venir del token de autenticación
+        // para asegurar que un usuario solo pueda ver sus propios pedidos.
+        // Por ahora, lo obtenemos de los parámetros de la URL como lo solicitaste.
+        const { userId } = req.params; // Asume que la ruta será /api/clientes/:userId/pedidos-activos
+
+        // Validar que el userId sea un ObjectId válido
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+            return res.status(400).json({ msg: "ID de usuario inválido." });
+        }
+
+        // Estados que queremos EXCLUIR
+        const estadosExcluidos = ['entregado', 'cancelado'];
+
+        // Buscar pedidos para el userId dado y que NO estén en los estados excluidos
+        const pedidos = await PedidoApp.find({
+            userId: userId,
+            estadoPedido: { $nin: estadosExcluidos } // $nin significa "not in"
+        })
+        .populate({
+            path: 'orderItems.productId', // Popula el campo productId dentro de cada orderItem
+            select: 'nombre' // Solo selecciona el campo 'nombre' del producto
+        })
+        .populate({
+            path: 'storeDetails.storeId', // Popula el campo storeId dentro de storeDetails
+            select: 'nombre latitud longitud' // Selecciona los campos de la tienda
+        })
+        .populate({
+            path: 'userId', // Popula el campo userId
+            select: 'nombre email telefono' // Selecciona los campos del cliente si los necesitas
+        })
+        .select('-__v -createdAt -updatedAt') // Excluir campos internos de Mongoose
+        .lean(); // Usar .lean() para obtener objetos JavaScript planos, más rápidos para lectura
+
+        if (!pedidos || pedidos.length === 0) {
+            return res.status(404).json({ msg: "No se encontraron pedidos activos para este usuario." });
+        }
+
+        // Formatear los pedidos para que coincidan con la estructura de tu dummydata de Flutter
+        const pedidosFormateados = pedidos.map(pedido => {
+            // Mapear orderItems para incluir productName
+            const orderItemsFormateados = pedido.orderItems.map(item => ({
+                productId: item.productId ? item.productId._id : null,
+                productName: item.productId ? item.productId.nombre : 'Producto Desconocido',
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                totalItemPrice: item.totalItemPrice,
+                selectedOptions: item.selectedOptions // Esto ya es un array de objetos
+            }));
+
+            // Mapear storeDetails para incluir storeName, storeLat, storeLng
+            let storeName = "Tienda Desconocida";
+            let storeLat = 0.0;
+            let storeLng = 0.0;
+            if (pedido.storeDetails && pedido.storeDetails.storeId) {
+                storeName = pedido.storeDetails.storeId.nombre;
+                storeLat = pedido.storeDetails.storeId.latitud;
+                storeLng = pedido.storeDetails.storeId.longitud;
+            }
+
+            return {
+                orderId: pedido._id, // Mapea _id a orderId
+                userId: pedido.userId ? pedido.userId._id : null, // Mapea userId populado
+                deliveryAddress: {
+                    name: pedido.deliveryAddress.name,
+                    fullAddress: pedido.deliveryAddress.fullAddress,
+                    gps: pedido.deliveryAddress.gps,
+                    reference: pedido.deliveryAddress.reference,
+                },
+                numeroPedido: pedido.numeroPedido,
+                subtotal: pedido.subtotal,
+                deliveryCost: pedido.deliveryCost,
+                totalAmount: pedido.totalAmount,
+                paymentMethod: pedido.paymentMethod,
+                cashPaymentDetails: pedido.cashPaymentDetails,
+                notes: pedido.notes,
+                orderItems: orderItemsFormateados,
+                orderDate: pedido.orderDate, // Formato ISO para fechas
+                storeDetails: {
+                    storeId: pedido.storeDetails.storeId ? pedido.storeDetails.storeId._id : null,
+                    storeName: storeName,
+                    storeLat: storeLat,
+                    storeLng: storeLng,
+                },
+                status: pedido.estadoPedido, // Mapea estadoPedido a 'status'
+                estadoTienda: pedido.estadoTienda, // Mantener si lo necesitas
+                estadoPedido: pedido.estadoPedido, // Mantener si lo necesitas
+                driver: pedido.driver ? pedido.driver : null, // Si el driver está populado, puedes añadir más detalles
+                horaLlegadaRecojo: pedido.horaLlegadaRecojo ? pedido.horaLlegadaRecojo : null,
+                horaRecojo: pedido.horaRecojo ? pedido.horaRecojo : null,
+                horaLlegadaDestino: pedido.horaLlegadaDestino ? pedido.horaLlegadaDestino : null,
+                horaEntrega: pedido.horaEntrega ? pedido.horaEntrega : null,
+                idMensajeTelegram: pedido.idMensajeTelegram,
+                idTelegram: pedido.idTelegram,
+                porcentPago: pedido.porcentPago,
+                createdAt: pedido.createdAt, // Si usas timestamps
+                updatedAt: pedido.updatedAt // Si usas timestamps
+            };
+        });
+
+        res.status(200).json(pedidosFormateados);
+
+    } catch (error) {
+        console.error("Error al obtener pedidos activos de la aplicación:", error);
+        res.status(500).json({ msg: "Error interno del servidor al obtener pedidos activos." });
+    }
+};
 
 
 

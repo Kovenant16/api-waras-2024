@@ -41,8 +41,7 @@ const fcmTokenSchema = new mongoose.Schema({
         // Pero para eso, la lógica de guardado debe ser más compleja.
     },
     platform: { // Opcional: 'android', 'ios', 'web'
-        type: String,
-        enum: ['android', 'ios', 'web', 'unknown'], // Restringe los valores posibles
+        type: String, // Restringe los valores posibles
         default: 'unknown',
     },
     lastRegisteredAt: { // Para saber cuándo fue la última vez que este token se registró/actualizó

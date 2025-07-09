@@ -881,6 +881,8 @@ const registrarFcmToken = async (req, res) => {
     }
 };
 
+
+
 export {
     registrarUsuario,
     autenticarUsuarioAdmin,

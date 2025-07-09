@@ -13,7 +13,8 @@ import {
     marcarPedidoAppRecogido,
     marcarPedidoEnDestino,
     marcarPedidoAppEntregado,
-    marcarPedidoAppAceptado
+    marcarPedidoAppAceptado,
+    getPedidosActivosPorUsuario
 } from '../controllers/appPedidoController.js';
 import checkAuth from '../middleware/checkAuth.js'; // Asegúrate de tener un middleware de autenticación si es necesario
 
@@ -84,5 +85,8 @@ router.put('/pedidos-app/en-destino/:id',  checkAuth, marcarPedidoEnDestino);
 // Ruta para marcar un pedido como 'entregado' (pedido finalizado)
 // También debe ser protegida.
 router.put('/pedidos-app/entregado/:id',  checkAuth,   marcarPedidoAppEntregado);
+
+// Ruta para obtener pedidos activos de un usuario
+router.get('/clientes/:userId/pedidos-activos', getPedidosActivosPorUsuario);
 
 export default router;
