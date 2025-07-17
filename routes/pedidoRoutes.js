@@ -100,7 +100,7 @@ router.delete("/eliminarPedidoSocio/:id", checkAuth, eliminarPedidoSocio)
 router.post("/calcularPrecioDelivery", calcularPrecioDelivery)
 router.post("/calcularPrecioDeliveryDos", calcularPrecioDeliveryDos)
 router.post("/obtenerLocalPorTelefono", obtenerLocalPorTelefono)
-router.get('/pedidosSinDriver', obtenerTodosLosPedidosSinDriver);
+router.get('/pedidosSinDriver',checkAuth, obtenerTodosLosPedidosSinDriver);
 router
     .route("/:id")
     .get(checkAuth, obtenerPedido)
