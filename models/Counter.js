@@ -1,16 +1,21 @@
-// src/models/Counter.js
+// models/Counter.js
 import mongoose from 'mongoose';
 
-const CounterSchema = mongoose.Schema({
-    _id: { // El nombre del contador (ej. 'pedidoAppId')
+const CounterSchema = new mongoose.Schema({
+    _id: {
         type: String,
-        required: true
+        required: true,
     },
-    seq: { // El valor actual de la secuencia
+    currentNumber: { // Renombrado de 'seq' a 'currentNumber' para mayor claridad
         type: Number,
         default: 0
+    },
+    currentPrefix: { // Nuevo campo para el prefijo alfabético
+        type: String,
+        default: 'A' // Empezamos con 'A'
     }
 });
 
 const Counter = mongoose.model('Counter', CounterSchema);
+
 export default Counter;

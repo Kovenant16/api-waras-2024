@@ -115,7 +115,7 @@ const pedidoAppSchema = mongoose.Schema(
         },
          // Nuevo campo para el número de pedido secuencial
         numeroPedido: {
-            type: Number,
+            type: String,
             unique: true, // Asegura que no haya dos pedidos con el mismo número
             sparse: true // Permite que algunos documentos no tengan este campo (si es que había pedidos antes)
         },

@@ -2,7 +2,7 @@
 
 import PedidoApp from '../models/PedidoApp.js';
 import mongoose from 'mongoose';
-import { getNextSequence } from '../utils/sequenceGenerator.js'
+import { getNextSequenceAlphanumeric } from '../utils/sequenceGenerator.js'
 
 import { sendNewOrderNotificationToMotorizados, sendNotificationToClient } from '../services/notificationService.js';
 import Cliente from '../models/Cliente.js';
@@ -39,7 +39,7 @@ const crearPedidoApp = async (req, res) => {
             return res.status(400).json({ msg: "Detalles de pago en efectivo incompletos." });
         }
 
-        const nextPedidoNumber = await getNextSequence('pedidoAppId'); // Asume que tienes un método para obtener el siguiente número de pedido
+        const nextPedidoNumber = await getNextSequenceAlphanumeric('pedidoAppId', 999);
 
         // Crear una nueva instancia del modelo PedidoApp
         const nuevoPedidoApp = new PedidoApp({
@@ -830,7 +830,7 @@ export const marcarPedidoAppRecogido = async (req, res) => {
                 await sendNotificationToClient(
                     clientFcmTokens,
                     "¡Pedido en Camino!",
-                    `¡Tu motorizado ya recogió tu pedido #${pedido.numeroPedido} y se dirige hacia ti!`,
+                    `¡Tu motorizado ya recogió tu pedido, y se dirige hacia ti!`,
                     {
                         orderId: pedido._id.toString(),
                         numeroPedido: pedido.numeroPedido.toString(),
@@ -932,7 +932,7 @@ export const marcarPedidoAppEntregado = async (req, res) => {
                 await sendNotificationToClient(
                     clientFcmTokens,
                     "¡Pedido Entregado!",
-                    `¡Tu pedido #${pedido.numeroPedido} ha sido entregado con éxito! ¡Esperamos verte de nuevo pronto!`,
+                    `¡Tu pedido, ha sido entregado con éxito! ¡Esperamos verte de nuevo pronto!`,
                     {
                         orderId: pedido._id.toString(),
                         numeroPedido: pedido.numeroPedido.toString(),
