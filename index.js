@@ -18,8 +18,8 @@ import envioPaqueteRoutes from './routes/envioPaqueteRoutes.js';
 import appPedidoRoutes from './routes/appPedidoRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 
-// 👉 DESCOMENTA ESTA LÍNEA para que el bot de WhatsApp se pueda importar
-import { startSock } from './bot/botWhatsapp.js'; 
+// 👉 COMENTADO: DESCOMENTA ESTA LÍNEA para que el bot de WhatsApp se pueda importar
+// import { startSock } from './bot/botWhatsapp.js'; 
 
 import http from 'http';
 import pedidos from './sockets/pedidos.js';
@@ -78,21 +78,21 @@ if (process.env.FIREBASE_ADMIN_SDK_CONFIG) {
             // y que la ruta sea correcta si lo usas localmente.
             // Si no usas esto en desarrollo, puedes dejar estas líneas comentadas o eliminarlas.
             // import path from 'path'; // Descomentar si usas la carga local
-            // import fs from 'fs';     // Descomentar si usas la carga local
+            // import fs from 'fs';     // Descomentar si usas la carga local
             // import { fileURLToPath } from 'url'; // Descomentar si usas la carga local
             // const __filename = fileURLToPath(import.meta.url); // Descomentar si usas la carga local
-            // const __dirname = path.dirname(__filename);       // Descomentar si usas la carga local
+            // const __dirname = path.dirname(__filename);       // Descomentar si usas la carga local
             // const localServiceAccountPath = path.resolve(__dirname, './config/waras-app-delivery-flutter-firebase-adminsdk-fbsvc-21495591b2.json');
             
             // Verifica si el archivo existe localmente antes de intentar leerlo
             // if (fs.existsSync(localServiceAccountPath)) { // Descomentar si usas la carga local
-            //     const serviceAccount = JSON.parse(fs.readFileSync(localServiceAccountPath, 'utf8')); // Descomentar si usas la carga local
-            //     admin.initializeApp({ // Descomentar si usas la carga local
-            //         credential: admin.credential.cert(serviceAccount) // Descomentar si usas la carga local
-            //     }); // Descomentar si usas la carga local
-            //     console.log('Firebase Admin SDK inicializado localmente desde archivo.'); // Descomentar si usas la carga local
+            //     const serviceAccount = JSON.parse(fs.readFileSync(localServiceAccountPath, 'utf8')); // Descomentar si usas la carga local
+            //     admin.initializeApp({ // Descomentar si usas la carga local
+            //         credential: admin.credential.cert(serviceAccount) // Descomentar si usas la carga local
+            //     }); // Descomentar si usas la carga local
+            //     console.log('Firebase Admin SDK inicializado localmente desde archivo.'); // Descomentar si usas la carga local
             // } else { // Descomentar si usas la carga local
-            //     console.error('Error: Archivo de clave de servicio local no encontrado en desarrollo.'); // Descomentar si usas la carga local
+            //     console.error('Error: Archivo de clave de servicio local no encontrado en desarrollo.'); // Descomentar si usas la carga local
             // } // Descomentar si usas la carga local
             console.warn('Firebase Admin SDK no inicializado localmente porque no está configurado para ello.'); // Mantener si no usas la carga local en dev
         } catch (localError) {
@@ -275,13 +275,13 @@ const iniciarApp = async () => {
         await conectarDB();
         console.log('Mongo Db conectado en:', process.env.MONGO_URI.split('@')[1] || 'URL no disponible');
 
-        // 👉 DESCOMENTA ESTE BLOQUE DE CÓDIGO para habilitar la inicialización del bot de WhatsApp.
-        const connectedSock = await startSock();
-        if (connectedSock) {
-            console.log('WhatsApp conectado y listo.');
-        } else {
-            console.error('Error al iniciar la conexión de WhatsApp.');
-        }
+        // 👉 COMENTADO: DESCOMENTA ESTE BLOQUE DE CÓDIGO para habilitar la inicialización del bot de WhatsApp.
+        // const connectedSock = await startSock();
+        // if (connectedSock) {
+        //     console.log('WhatsApp conectado y listo.');
+        // } else {
+        //     console.error('Error al iniciar la conexión de WhatsApp.');
+        // }
 
         const server = http.createServer(app);
         server.on('error', (error) => {
