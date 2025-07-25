@@ -98,43 +98,45 @@ export async function startSock() {
             // --- Lógica para obtener el JID real del remitente ---
             let userRealJid = '';
             let isRealJidFromMap = false;
-            let isOriginalRemoteJidLid = remoteJid.endsWith('@lid'); // Variable para saber si el remoteJid original es @lid
+            let isOriginalRemoteJidLid = remoteJid.endsWith('@lid');
 
-
-            // 1. Intentar obtener el JID real de las propiedades del mensaje (siempre prioritario)
-            if (msg.key.participant) {
-                userRealJid = msg.key.participant;
-            } else if (msg.sender) {
-                userRealJid = msg.sender;
-            } else if (msg.participant) {
-                userRealJid = msg.participant;
-            } else if (remoteJid && remoteJid.endsWith('@s.whatsapp.net')) {
-                userRealJid = remoteJid;
-            }
-
-            // 2. Si el JID real no se obtuvo DE LAS PROPIEDADES y el chat es un @lid, buscar en el mapa
-            if (!userRealJid && isOriginalRemoteJidLid && realJidMap.has(remoteJid)) {
-                userRealJid = realJidMap.get(remoteJid);
-                isRealJidFromMap = true;
-                console.log(`DEBUG: JID real '${userRealJid}' recuperado del mapa para @lid '${remoteJid}'.`);
-            } else if (!userRealJid && !isOriginalRemoteJidLid) {
-                // Si no es @lid y no se obtuvo de las propiedades (ej. algunos @s.whatsapp.net directos sin participant),
-                // asumimos remoteJid como userRealJid si no es un grupo.
-                // Esta es una medida de seguridad.
-                userRealJid = remoteJid; 
-                console.log(`DEBUG: userRealJid asumido como remoteJid '${userRealJid}' (no es @lid y no se obtuvo de propiedades).`);
+            // 1. Prioritize msg.key.participant if available (most direct for some cases)
+            if (msg.key.participant) {
+                userRealJid = msg.key.participant;
+                console.log(`DEBUG: JID real '${userRealJid}' obtenido de msg.key.participant.`);
+            } 
+            // 2. If remoteJid is already an @s.whatsapp.net JID, use it directly
+            else if (remoteJid && remoteJid.endsWith('@s.whatsapp.net')) {
+                userRealJid = remoteJid;
+                console.log(`DEBUG: JID real '${userRealJid}' obtenido directamente de remoteJid (@s.whatsapp.net).`);
+            }
+            // 3. If it's an @lid JID, try to get from map (if previously stored)
+            else if (isOriginalRemoteJidLid && realJidMap.has(remoteJid)) {
+                userRealJid = realJidMap.get(remoteJid);
+                isRealJidFromMap = true;
+                console.log(`DEBUG: JID real '${userRealJid}' recuperado del mapa para @lid '${remoteJid}'.`);
+            }
+            // 4. Fallback for @lid JIDs if still no real JID found: Try to resolve it using getContactById
+            if (!userRealJid && isOriginalRemoteJidLid) {
+                try {
+                    const contact = await sock.getContactById(remoteJid);
+                    if (contact && contact.id && contact.id.endsWith('@s.whatsapp.net')) {
+                        userRealJid = contact.id;
+                        console.log(`DEBUG: JID real '${userRealJid}' resuelto de @lid '${remoteJid}' usando getContactById.`);
+                        // Store it in the map for future messages from this @lid JID
+                        realJidMap.set(remoteJid, userRealJid);
+                    } else {
+                        console.log(`DEBUG: getContactById did not resolve real JID for @lid '${remoteJid}'. Contact:`, contact);
+                    }
+                } catch (e) {
+                    console.error(`ERROR: Failed to resolve real JID for @lid '${remoteJid}' using getContactById:`, e.message);
+                }
             }
             
             // Determinar si es un mensaje de texto (conversation o extendedTextMessage)
             const isTextMessage = msg.message.conversation || (msg.message.extendedTextMessage && msg.message.extendedTextMessage.text);
 
             if (isTextMessage) {
-                // Si logramos obtener un JID real de las propiedades (y no es el @lid que ya tenemos), lo guardamos para el @lid
-                if (userRealJid && userRealJid.endsWith('@s.whatsapp.net') && isOriginalRemoteJidLid) {
-                    realJidMap.set(remoteJid, userRealJid); // Usa remoteJid (el @lid) como clave
-                    console.log(`DEBUG: JID real '${userRealJid}' asociado con @lid '${remoteJid}' en el mapa.`);
-                }
-                
                 console.log('🚫 Tipo de mensaje: MENSAJE DE TEXTO. Contenido:', isTextMessage);
                 
                 // La respuesta para el texto es siempre la misma, pidiendo la ubicación.
@@ -168,7 +170,7 @@ export async function startSock() {
                 }
                 // --- FIN LÓGICA DE EXTRACCIÓN Y VALIDACIÓN DEL NÚMERO PARA API ---
 
-                console.log(`DEBUG: JID procesado para número (Fuente: ${isRealJidFromMap ? 'Mapa de JIDs' : (isOriginalRemoteJidLid ? 'RemoteJid @lid sin resolución' : 'Propiedades de mensaje') }): ${userRealJid}`); 
+                console.log(`DEBUG: JID procesado para número (Fuente: ${isRealJidFromMap ? 'Mapa de JIDs' : (isOriginalRemoteJidLid ? 'RemoteJid @lid con intento de resolución' : 'Propiedades de mensaje/directo') }): ${userRealJid}`); 
                 console.log(`📍 Ubicación recibida de (intentando obtener el número): Lat ${latitude}, Long ${longitude}`);
                 console.log(`Teléfono limpio para API (FINAL): ${numeroParaAPI} (Válido: ${isValidPhoneNumber})`); 
                 
