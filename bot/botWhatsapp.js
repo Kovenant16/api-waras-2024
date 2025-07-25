@@ -30,14 +30,13 @@ export async function startSock() {
     return new Promise(async (resolve) => {
         connectionPromiseResolve = resolve;
 
-        const AUTH_FILE_PATH = 'data'; // Define la ruta de tu carpeta de autenticación
-                                        // Asegúrate de que coincida con lo que configuraste en tu servidor
+        const AUTH_FILE_PATH = 'data'; 
 
         console.log('🟢 Iniciando sesión de WhatsApp...');
         const { state, saveCreds } = await useMultiFileAuthState(AUTH_FILE_PATH);
 
         sock = makeWASocket({
-            logger: P({ level: 'error' }), // Deja en 'error' para producción, cambia a 'info' o 'debug' para más logs
+            logger: P({ level: 'error' }), 
             auth: state,
         });
 
@@ -83,8 +82,8 @@ export async function startSock() {
 
             const remoteJid = msg.key.remoteJid;
 
-            if (remoteJid === 'status@broadcast') return; // Ignorar mensajes de estado del sistema
-            if (remoteJid.endsWith('@g.us')) return; // Ignorar mensajes de grupos
+            if (remoteJid === 'status@broadcast') return;
+            if (remoteJid.endsWith('@g.us')) return; // Seguir ignorando grupos para este caso de uso
             
             console.log("remote Jid", remoteJid);
             console.log('ℹ️ Estado de la conexión al recibir un mensaje:', isConnected);
@@ -95,40 +94,79 @@ export async function startSock() {
                 const latitude = location.degreesLatitude;
                 const longitude = location.degreesLongitude;
 
-                // --- INICIO DE LA LÓGICA DE EXTRACCIÓN DEL NÚMERO DE TELÉFONO (MODIFICADO) ---
+                // --- INICIO DE LA LÓGICA DE EXTRACCIÓN DEL NÚMERO DE TELÉFONO (MÁS EXHAUSTIVA) ---
                 let userPhoneNumberJid = '';
+                let source = 'unknown'; // Para saber de dónde se obtuvo el JID
 
-                // 1. Priorizamos msg.key.participant para grupos o ciertos escenarios de Linked Devices
+                // Prioridad 1: msg.key.participant (para grupos y algunos escenarios de linked devices)
                 if (msg.key.participant) {
                     userPhoneNumberJid = msg.key.participant;
+                    source = 'msg.key.participant';
                 } 
-                // 2. Si no hay participant, intentamos con msg.sender (a veces lo contiene para el remitente real)
+                // Prioridad 2: msg.sender (a veces lo contiene para el remitente real en 1-1)
                 else if (msg.sender) {
                     userPhoneNumberJid = msg.sender;
+                    source = 'msg.sender';
                 }
-                // 3. Como último recurso, usamos remoteJid, aunque sabemos que puede ser un @lid
+                // Prioridad 3: msg.participant (otra variante que a veces existe para 1-1 linked devices)
+                else if (msg.participant) {
+                    userPhoneNumberJid = msg.participant;
+                    source = 'msg.participant';
+                }
+                // Prioridad 4: El remoteJid del mensaje si es un chat individual y no es un @lid
+                // Esta condición intenta capturar el caso normal de 1-1 chat sin ser un @lid
+                else if (remoteJid && remoteJid.endsWith('@s.whatsapp.net')) {
+                    userPhoneNumberJid = remoteJid;
+                    source = 'remoteJid (@s.whatsapp.net)';
+                }
+                // Último recurso: remoteJid, incluso si es un @lid (ya sabemos que es el problemático)
                 else {
                     userPhoneNumberJid = remoteJid;
+                    source = 'remoteJid (fallback, potentially @lid)';
                 }
                 
                 // Extraemos solo la parte numérica antes del '@'
                 let userPhone = userPhoneNumberJid.split('@')[0];
 
                 // Ajuste para el formato de la API:
-                // Si tu API espera 9 dígitos (ej. '967840515') y asumes siempre son números de Perú ('51'):
-                const numeroParaAPI = userPhone.startsWith('51') ? userPhone.substring(2) : userPhone;
-                
-                // Si tu API espera el número completo con código de país (ej. '51967840515'), usa esta línea en su lugar:
-                // const numeroParaAPI = userPhone;
-                // --- FIN DE LA LÓGICA DE EXTRACCIÓN DEL NÚMERO DE TELÉFONO (MODIFICADO) ---
+                let numeroParaAPI = userPhone;
+                // Intentamos limpiar si parece un número de Perú con código de país
+                if (userPhone.startsWith('51') && userPhone.length >= 11) { // 51 + 9 dígitos
+                    // Nos aseguramos que el resto del string sean dígitos para evitar cortar el @lid
+                    const potentialNumber = userPhone.substring(2);
+                    if (!isNaN(potentialNumber) && potentialNumber.length === 9) { // Solo si son 9 dígitos numéricos
+                        numeroParaAPI = potentialNumber;
+                    }
+                } else if (userPhone.length === 9 && !isNaN(userPhone)) { // Si ya tiene 9 dígitos y es numérico
+                    numeroParaAPI = userPhone;
+                }
+                // Si el userPhone sigue siendo el @lid u otro formato, numeroParaAPI seguirá siendo ese valor
 
-                console.log(`DEBUG: JID procesado para número: ${userPhoneNumberJid}`); // Nuevo log para depuración
+                // --- FIN DE LA LÓGICA DE EXTRACCIÓN DEL NÚMERO DE TELÉFONO (MÁS EXHAUSTIVA) ---
+
+                console.log(`DEBUG: JID procesado para número (Fuente: ${source}): ${userPhoneNumberJid}`);
                 console.log(`📍 Ubicación recibida de ${numeroParaAPI}: Lat ${latitude}, Long ${longitude}`);
-                console.log(`Teléfono limpio para API (DEBUG): ${numeroParaAPI}`); // Nuevo log de depuración
+                console.log(`Teléfono limpio para API (FINAL): ${numeroParaAPI}`); 
+                
+                // Si el número sigue siendo el ID @lid, podemos agregar una verificación aquí
+                // para evitar llamadas a la API con un número incorrecto.
+                if (userPhone.endsWith('@lid')) {
+                    console.error(`❌ ERROR CRÍTICO: El JID del remitente sigue siendo un ID de dispositivo vinculado (@lid) '${userPhone}'. No se puede obtener el número de teléfono real. Mensaje ignorado.`);
+                    await sock.sendMessage(remoteJid, { text: "❌ Lo siento, no puedo procesar tu solicitud. No puedo identificar tu número de teléfono real. Por favor, intenta enviar un mensaje de texto primero o contacta al soporte." });
+                    return; // Detiene el procesamiento si el número es incorrecto
+                }
+                // Puedes agregar aquí una verificación de formato de número de teléfono
+                // para Perú (ej. que empiece con 9 y tenga 9 dígitos)
+                if (!numeroParaAPI.match(/^\d{9}$/)) { // Verifica si no son exactamente 9 dígitos
+                     console.error(`❌ ERROR CRÍTICO: El número de teléfono '${numeroParaAPI}' no tiene el formato esperado (9 dígitos).`);
+                     await sock.sendMessage(remoteJid, { text: "❌ Lo siento, no puedo procesar tu solicitud. El formato de tu número de teléfono no es válido." });
+                     return;
+                }
+
 
                 try {
                     const localResponse = await axios.post(`${process.env.API_URL}/api/pedidos/obtenerLocalPorTelefono`, {
-                        telefono: numeroParaAPI // Usa el número limpio para la API
+                        telefono: numeroParaAPI 
                     });
 
                     if (!localResponse.data) {
@@ -199,7 +237,6 @@ Si estás de acuerdo, estamos listos para programar el pedido.`
 
                 } catch (error) {
                     console.error('❌ Error completo al procesar la solicitud de precio:', error);
-                    // Añadido para depurar la respuesta de la API si hay un error
                     if (error.response?.data) {
                         console.error('Response Data from API (DEBUG):', error.response.data);
                     }
@@ -208,7 +245,6 @@ Si estás de acuerdo, estamos listos para programar el pedido.`
                     if (error.response?.status === 400) {
                         mensajeError = `❌ ${error.response.data.msg || 'Error en la solicitud'}`;
                     } else if (error.response?.status === 404) {
-                        // Corrección aquí: el string estaba sin cerrar
                         mensajeError = '❌ No encontramos la información necesaria. Por favor, asegúrate de que tu número esté registrado en nuestro sistema.';
                     } else if (error.request) {
                         mensajeError = '❌ No pudimos conectar con nuestros servicios. Por favor, intenta de nuevo más tarde.';
