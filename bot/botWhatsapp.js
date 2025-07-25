@@ -40,7 +40,7 @@ export async function startSock() {
 
 
         sock = makeWASocket({
-            logger: P({ level: 'debug' }), // Deja en 'debug' o 'info' para depurar
+            logger: P({ level: 'error' }), // Deja en 'debug' o 'info' para depurar
             // printQRInTerminal: true, // COMENTA/ELIMINA ESTA LÍNEA, ya manejas el QR
             auth: state,
         });
@@ -176,19 +176,25 @@ Si estás de acuerdo, estamos listos para programar el pedido.`
                     console.log(`✅ Precio enviado a ${local.nombre}: S/ ${price}, Distancia: ${(distance / 1000).toFixed(2)} km`);
 
                 } catch (error) {
-                    console.error('❌ Error al procesar la solicitud de precio:', error.message);
+    // console.error('❌ Error al procesar la solicitud de precio:', error.message); // <-- Comenta o elimina esta línea
 
-                    let mensajeError = '❌ Hubo un problema al procesar tu solicitud.';
-                    if (error.response?.status === 400) {
-                        mensajeError = `❌ ${error.response.data.msg || 'Error en la solicitud'}`;
-                    } else if (error.response?.status === 404) {
-                        mensajeError = '❌ No encontramos la información necesaria.';
-                    } else if (error.request) {
-                        mensajeError = '❌ No pudimos conectar con nuestros servicios.';
-                    }
+    // ¡Añade o modifica esto para un log más detallado!
+    console.error('❌ Error completo al procesar la solicitud de precio:', error);
 
-                    //await sock.sendMessage(remoteJid, { text: mensajeError });
-                }
+    let mensajeError = '❌ Hubo un problema al procesar tu solicitud.';
+    if (error.response?.status === 400) {
+        mensajeError = `❌ ${error.response.data.msg || 'Error en la solicitud'}`;
+    } else if (error.response?.status === 404) {
+        mensajeError = '❌ No encontramos la información necesaria.';
+    } else if (error.request) { // <-- Esto es clave para errores de red
+        mensajeError = '❌ No pudimos conectar con nuestros servicios. Verifica la URL de la API y el firewall.';
+    } else {
+        // Un error inesperado que no tiene response ni request
+        mensajeError = `❌ Ocurrió un error inesperado: ${error.message || 'Desconocido'}`;
+    }
+
+    await sock.sendMessage(remoteJid, { text: mensajeError }); // Asegúrate de que esta línea esté descomentada para depurar al usuario
+}
             }
         });
     });
