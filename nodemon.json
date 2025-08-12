@@ -1,5 +1,5 @@
 {
   "watch": ["."],
-  "ignore": ["auth/*", "node_modules/*"],
+  "ignore": ["baileys_auth_data/*", "node_modules/**/*", "session_status.json", "data/**/*"],
   "ext": "js,json"
 }

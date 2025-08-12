@@ -1,7 +1,7 @@
 // bot.js
 import { Telegraf } from "telegraf";
 import Pedido from "../models/Pedido.js";
-import { obtenerMotorizadosActivosYEnviarMensaje } from "../controllers/usuarioController.js";
+import { enviarMotorizadosActivosAlUsuario, obtenerMotorizadosActivosYEnviarMensaje } from "../controllers/usuarioController.js";
 
 const bot = new Telegraf('7417968430:AAFcvygubDqlXH7FXoXg8R-9NdR0oS18KGo')
 
@@ -60,11 +60,9 @@ bot.command('admin', (ctx) => {
 });
 
 bot.command('activ', async (ctx) => {
-  // Enviar el mensaje inicial
-  
-
-  // Obtener y enviar la lista de motorizados activos
-  await obtenerMotorizadosActivosYEnviarMensaje();
+    // Aquí el código es mucho más simple
+    // Simplemente se llama a la función y se le pasa el contexto (ctx)
+    await enviarMotorizadosActivosAlUsuario(ctx);
 });
 
 bot.command('h', (ctx) => {

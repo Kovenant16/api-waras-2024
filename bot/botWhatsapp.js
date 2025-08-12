@@ -4,12 +4,16 @@ import axios from 'axios';
 import qrcode from 'qrcode-terminal';
 import fs from 'fs/promises'; 
 import path from 'path'; 
+import 'dotenv/config'; // Asegura que las variables de entorno se carguen
 
 const { makeWASocket, DisconnectReason, useMultiFileAuthState } = baileys;
 
 export let sock = null; 
 let isConnected = false; 
 let connectionPromiseResolve;
+
+// ¡Aquí es donde se corrigió la comilla! Está bien ahora.
+console.log('DEBUG: Valor de process.env.API_URL:', process.env.API_URL); 
 
 export const isSockConnected = () => isConnected;
 
@@ -169,20 +173,17 @@ export async function startSock() {
 
         sock.ev.on('messages.upsert', async ({ messages }) => {
             const msg = messages[0];
-            if (!msg.message || msg.key.fromMe) return;
+            if (!msg.message || msg.key.fromMe) return; // Ignora mensajes propios o vacíos
 
             const remoteJid = msg.key.remoteJid;
 
-            if (remoteJid === 'status@broadcast') return; 
-            if (remoteJid.endsWith('@g.us')) return; 
+            if (remoteJid === 'status@broadcast') return; // Ignora estados de WhatsApp
+            if (remoteJid.endsWith('@g.us')) return; // Ignora grupos de WhatsApp
             
             console.log("🆔 Remote JID:", remoteJid);
             console.log("👤 Push Name:", msg.pushName);
             console.log('ℹ️ Estado de la conexión al recibir un mensaje:', isConnected);
             
-            // DEBUG: Log completo del mensaje (solo en desarrollo)
-            // console.log('📦 Mensaje completo recibido (DEBUG):', JSON.stringify(msg, null, 2));
-
             // --- LÓGICA MEJORADA PARA OBTENER EL JID REAL ---
             let userRealJid = '';
             let phoneNumber = '';
@@ -210,25 +211,7 @@ export async function startSock() {
                 }
             }
 
-            // Determinar si es un mensaje de texto
-            const textContent = msg.message.conversation || 
-                               (msg.message.extendedTextMessage && msg.message.extendedTextMessage.text);
-
-            if (textContent) {
-                console.log('📝 Mensaje de texto recibido:', textContent);
-                
-                // Si es un JID @lid y no tenemos el JID real, guardar la asociación cuando llegue el texto
-                if (remoteJid.endsWith('@lid') && !userRealJid) {
-                    console.log('🔗 Mensaje de texto desde @lid sin resolver, solicitando ubicación...');
-                }
-                
-                await sock.sendMessage(remoteJid, { 
-                    text: `¡Hola ${msg.pushName || 'cliente'}! Para calcular el costo de entrega, por favor envíame tu ubicación. 📍😊` 
-                });
-                return;
-            }
-
-            // Procesar mensaje de ubicación
+            // Procesar solo mensajes de ubicación
             const location = msg.message.locationMessage;
             if (location) {
                 const latitude = location.degreesLatitude;
@@ -243,7 +226,7 @@ export async function startSock() {
                     console.error(`❌ No se pudo obtener un número válido. JID: ${userRealJid}, Teléfono: ${phoneNumber}`);
                     
                     await sock.sendMessage(remoteJid, { 
-                        text: `❌ Lo siento, no puedo procesar tu ubicación. Por favor:\n\n1️⃣ Envíame primero un mensaje de texto (ej: "Hola")\n2️⃣ Luego envía tu ubicación\n\nEsto me ayuda a identificar tu número correctamente. 😊` 
+                        text: `❌ Lo siento, no puedo procesar tu ubicación. Para que funcione correctamente, asegúrate de que tu número esté registrado en nuestro sistema.` 
                     });
                     return;
                 }
@@ -312,10 +295,10 @@ export async function startSock() {
                     }
 
                     const { price, distance } = deliveryResponse.data;
-                    const distanceKm = (distance * 1.2).toFixed(2);
+                    const distanceKm = (distance * 1.2).toFixed(2); // Ajuste de distancia si es necesario
 
                     await sock.sendMessage(remoteJid, {
-                        text: `🤖 ¡Hola!\n\nEl costo de entrega desde *${capitalizarNombre(local.nombre)}* hasta tu ubicación es:\n\n💰 *S/ ${price}*\n📍 Distancia aprox: *${distanceKm} km*\n\n📍 Coordenadas: ${latitude}, ${longitude}\n\nSi estás de acuerdo, estamos listos para procesar tu pedido. ✅`
+                        text: `🤖 ¡Hola!\nEl costo de entrega desde *${capitalizarNombre(local.nombre)}* hasta tu ubicación es:\n💰 *S/ ${price}*\n📍 Distancia aprox: *${distanceKm} km*\n📍 Coordenadas: ${latitude}, ${longitude}\n\nSi estás de acuerdo, estamos listos para procesar tu pedido. ✅`
                     });
 
                     console.log(`✅ Precio enviado exitosamente - Local: ${local.nombre}, Precio: S/ ${price}, Distancia: ${distanceKm} km`);
@@ -338,17 +321,14 @@ export async function startSock() {
                     await sock.sendMessage(remoteJid, { text: mensajeError });
                 }
             } else {
-                // Mensaje que no es texto ni ubicación
-                console.log('🚫 Mensaje no soportado (no es texto ni ubicación)');
-                await sock.sendMessage(remoteJid, { 
-                    text: "👋 ¡Hola! Para calcular el costo de entrega, por favor:\n\n1️⃣ Envíame un mensaje de texto\n2️⃣ Luego comparte tu ubicación 📍\n\nGracias 😊" 
-                });
+                // Si el mensaje NO es una ubicación, simplemente se ignora (no se envía ninguna respuesta).
+                console.log('🚫 Mensaje recibido no es una ubicación, ignorando...');
             }
         });
     });
 }
 
-// Resto de funciones sin cambios...
+
 export async function enviarMensajeAsignacion(numero, mensaje) {
     try {
         const numeroFormateado = numero.includes('@s.whatsapp.net')
@@ -402,7 +382,7 @@ async function generarCodigoVerificacion(longitud = 4) {
 
 export async function iniciarLoginCliente(telefonoConCodigo) {
     let telefonoSinCodigo = telefonoConCodigo;
-    const codigoPais = telefonoConCodigo.substring(1, telefonoConCodigo.indexOf('9')); 
+    // const codigoPais = telefonoConCodigo.substring(1, telefonoConCodigo.indexOf('9')); // Esta línea no se utiliza, se puede comentar o eliminar
 
     if (telefonoSinCodigo.startsWith('+')) {
         telefonoSinCodigo = telefonoSinCodigo.substring(1);

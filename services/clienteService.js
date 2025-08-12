@@ -121,6 +121,39 @@ const verificarCodigoCliente = async (req, res) => {
     }
 };
 
+export const manejarPostVerificacion = async (req, res) => {
+    // Asume que Firebase ya verificó el código SMS.
+    const { telefono, codigoPais } = req.body;
+    const telefonoConCodigo = codigoPais + telefono;
+
+    console.log('➡️ Manejando lógica post-verificación para teléfono:', telefonoConCodigo);
+
+    try {
+        // Busca al cliente por su número de teléfono en MongoDB
+        let cliente = await Cliente.findOne({ telefono: telefonoConCodigo });
+
+        if (cliente) {
+            console.log('🔍 Cliente encontrado por número de teléfono.');
+            const token = generarToken(cliente._id);
+            res.json({ mensaje: 'Verificación exitosa.', token, cliente });
+        } else {
+            console.log('🆕 Cliente no encontrado. Creando nuevo cliente...');
+            const nuevoCliente = new Cliente({
+                telefono: telefonoConCodigo,
+                codigoPais: codigoPais,
+            });
+
+            await nuevoCliente.save();
+            const token = generarToken(nuevoCliente._id);
+            console.log('🟢 Nuevo cliente creado y token generado.');
+            res.json({ mensaje: 'Verificación exitosa. Nuevo cliente creado.', token, cliente: nuevoCliente });
+        }
+    } catch (error) {
+        console.error('💥 Error en la lógica post-verificación:', error);
+        res.status(500).json({ error: 'Error interno del servidor: ' + error.message });
+    }
+};
+
 
 const obtenerClientePorId = async (req, res) => {
     const { id } = req.params;

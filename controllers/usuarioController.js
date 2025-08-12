@@ -769,6 +769,35 @@ export const obtenerMotorizadosActivosYEnviarMensaje = async () => {
     }
 };
 
+export const enviarMotorizadosActivosAlUsuario = async (ctx) => {
+    try {
+        const motorizados = await Usuario.find({
+            rol: "motorizado",
+            habilitado: true,
+            activo: true
+        })
+            .select("nombre horaActivacion estadoUsuario")
+            .sort({ horaActivacion: 1 });
+
+        // Crea el mensaje de Telegram con la lista de motorizados activos
+        let mensaje = "📋 Lista de motorizados activos:\n\n";
+        motorizados.forEach((motorizado, index) => {
+            const [primerNombre, apellido] = motorizado.nombre.split(" ");
+            const apellidoAbreviado = apellido ? apellido.slice(0, 3) : '';
+
+            mensaje += `${index + 1}. ${primerNombre} ${apellidoAbreviado}. - EE: ${motorizado.estadoUsuario}\n`;
+        });
+
+        // Usa ctx.reply para responder directamente al usuario que envió el comando
+        await ctx.reply(mensaje);
+
+    } catch (error) {
+        console.log("Error al obtener los motorizados activos o enviar el mensaje de Telegram:", error);
+        // También puedes enviar un mensaje de error al usuario
+        ctx.reply("Hubo un error al intentar obtener la lista de motorizados. Por favor, inténtalo de nuevo más tarde.");
+    }
+};
+
 
 const toggleActivarUsuario = async (req, res) => {
     const { token } = req.params

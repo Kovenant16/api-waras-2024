@@ -227,6 +227,93 @@ export const sendNewOrderNotificationToMotorizados = async (title, body, data = 
 };
 
 
+export const sendPushNotificationToMotorizado = async (motorizadoId, title, body, data = {}, options = {}) => {
+    try {
+        const motorizado = await Usuario.findById(motorizadoId);
+
+        if (!motorizado || motorizado.rol !== 'motorizado') {
+            console.warn(`[Servicio de Notificaciones] Motorizado con ID ${motorizadoId} no encontrado o no es un motorizado. No se enviará notificación.`);
+            return { success: 0, failure: 0, message: 'Motorizado no encontrado o rol incorrecto.' };
+        }
+
+        if (!motorizado.fcmTokens || motorizado.fcmTokens.length === 0) {
+            console.log(`[Servicio de Notificaciones] Motorizado ${motorizadoId} no tiene tokens FCM registrados.`);
+            return { success: 0, failure: 0, message: 'No hay tokens FCM registrados para el motorizado.' };
+        }
+
+        const tokensToSend = motorizado.fcmTokens.map(t => t.token);
+
+        const message = {
+            notification: {
+                title: title,
+                body: body,
+            },
+            data: {
+                ...data,
+                motorizadoId: motorizadoId.toString(), // Asegúrate de que el motorizadoId siempre vaya en los datos
+                notificationType: 'assigned_order', // Tipo específico para pedidos asignados
+            },
+            tokens: tokensToSend,
+            ...options, // Permitir opciones adicionales como priority, timeToLive
+            android: {
+                priority: 'high',
+                notification: {
+                    sound: 'default',
+                },
+            },
+            apns: {
+                payload: {
+                    aps: {
+                        sound: 'default',
+                    },
+                },
+            },
+        };
+
+        console.log('--- Carga útil de notificación FCM para enviar a motorizado específico ---');
+        console.log('Dirigido a los siguientes tokens FCM:', tokensToSend);
+        console.log('Mensaje de notificación:', JSON.stringify(message, null, 2));
+        console.log('-----------------------------------------------------------------');
+
+        const response = await admin.messaging().sendEachForMulticast(message);
+
+        console.log(`[Servicio de Notificaciones] Notificación FCM enviada a motorizado ${motorizadoId}. Éxitos: ${response.successCount}, Fallos: ${response.failureCount}`);
+
+        // --- Lógica de limpieza pasiva de tokens ---
+        if (response.failureCount > 0) {
+            const tokensToRemove = [];
+            response.responses.forEach((resp, idx) => {
+                if (!resp.success) {
+                    const failedToken = tokensToSend[idx];
+                    if (resp.error && (
+                        resp.error.code === 'messaging/invalid-registration-token' ||
+                        resp.error.code === 'messaging/registration-token-not-registered' ||
+                        resp.error.code === 'messaging/unregistered'
+                    )) {
+                        tokensToRemove.push(failedToken);
+                        console.log(`[Servicio de Notificaciones] Token inválido detectado para motorizado ${motorizadoId}: ${failedToken}. Error: ${resp.error.message}`);
+                    } else {
+                        console.warn(`[Servicio de Notificaciones] Error desconocido al enviar a token ${failedToken}: ${resp.error?.message || 'Sin mensaje de error'}`);
+                    }
+                }
+            });
+
+            if (tokensToRemove.length > 0) {
+                motorizado.fcmTokens = motorizado.fcmTokens.filter(t => !tokensToRemove.includes(t.token));
+                await motorizado.save();
+                console.log(`[Servicio de Notificaciones] Eliminados ${tokensToRemove.length} tokens inválidos para motorizado ${motorizadoId}.`);
+            }
+        }
+
+        return { success: response.successCount, failure: response.failureCount };
+
+    } catch (error) {
+        console.error(`[Servicio de Notificaciones] Error al enviar notificación FCM a motorizado ${motorizadoId}:`, error);
+        throw new Error('Error al enviar notificación push a motorizado.');
+    }
+};
+
+
 export const sendNotificationToClient = async (fcmTokens, title, body, data = {}, options = {}) => {
     if (!fcmTokens || fcmTokens.length === 0) {
         console.warn("No se proporcionaron tokens FCM para la notificación.");

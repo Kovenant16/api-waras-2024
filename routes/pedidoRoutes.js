@@ -60,7 +60,11 @@ import {
     marcarPedidoExpressEntregado,
     getAppOrderById,
     getExpressOrderById,
-    getPackageOrderById
+    getPackageOrderById,
+    liberarPedidoApp,
+    liberarPedidoExpress,
+    liberarEnvioPaquete,
+    asignarPedidoExpress
 } from "../controllers/pedidoController.js";
 import checkAuth from "../middleware/checkAuth.js";
 
@@ -126,6 +130,10 @@ router.put('/aceptarPedidoExpress/:id', checkAuth, aceptarPedidoExpress);
 router.put('/marcarPedidoExpressEnLocal/:id', checkAuth, marcarPedidoExpressEnLocal);
 router.put('/marcarPedidoExpressRecogido/:id', checkAuth, marcarPedidoExpressRecogido);
 router.put('/entregarPedidoExpress/:id', checkAuth, marcarPedidoExpressEntregado);
+router.put('/app/liberar/:pedidoId',checkAuth, liberarPedidoApp); 
+router.put('/express/liberar/:pedidoId', checkAuth, liberarPedidoExpress); 
+router.put('/paquete/liberar/:paqueteId',checkAuth, liberarEnvioPaquete);
+router.put('/express/asignar/:pedidoId',checkAuth, asignarPedidoExpress); 
 
 // Nuevas rutas para obtener pedidos por ID
 router.get('/app/order/:id', checkAuth, getAppOrderById);

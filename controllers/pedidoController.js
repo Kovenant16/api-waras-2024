@@ -9,10 +9,84 @@ import { sendMessage, sendMessageWithId, deleteMessageWithId } from "../bot/bot.
 import { coordenadasPoligonoInicial, coordenadasPoligonoSecundario } from "../files/coordenadas.js";
 import { enviarMensajeAsignacion, startSock } from "../bot/botWhatsapp.js";
 import moment from 'moment-timezone'; // Para un manejo robusto de fechas y zonas horarias
+import mongoose from "mongoose";
+import { sendNewOrderNotificationToMotorizados, sendPushNotificationToMotorizado } from "../services/notificationService.js";
 
 
 const io = new Server(/* Parámetros del servidor, como la instancia de tu servidor HTTP */);
 
+const assignedOrderTimeouts = new Map(); 
+
+// CAMBIO AQUÍ: Declaración de función en lugar de const para mejor hoisting
+async function _releaseExpressOrderLogic(pedidoId) { 
+    try {
+        const pedido = await Pedido.findById(pedidoId);
+
+        if (!pedido) {
+            console.warn(`[Controlador de Pedidos] Intento de liberar pedido Express ${pedidoId} pero no fue encontrado.`);
+            return null;
+        }
+
+        // Solo liberar si todavía está en estado 'pendiente' o 'aceptado' y asignado a un conductor
+        // Esto evita liberar un pedido que ya ha sido recogido, entregado o cancelado por otros medios
+        if (pedido.estadoPedido === 'pendiente' || pedido.estadoPedido === 'aceptado') {
+            pedido.estadoPedido = 'sin asignar'; // Restablecer estado a "sin asignar"
+            pedido.driver = null; // Desasignar cualquier conductor previamente asignado
+            pedido.horaAceptado = null;
+            pedido.horaRecojo = null;
+            pedido.horaLlegadaLocal = null;
+            pedido.horaEntrega = null;
+            pedido.idMensajeTelegram = null; 
+            pedido.idTelegram = null;
+
+            const pedidoActualizado = await pedido.save();
+
+            // Obtener el nombre del local asociado al pedido para el mensaje de notificación
+            const localId = pedidoActualizado.local && pedidoActualizado.local.length > 0 ? pedidoActualizado.local[0] : null;
+            let localName = 'Local Desconocido';
+            if (localId) {
+                const local = await Local.findById(localId);
+                if (local) {
+                    localName = local.nombre;
+                }
+            }
+
+            // Enviar notificación a TODOS los motorizados de que el pedido está disponible nuevamente
+            try {
+                await sendNewOrderNotificationToMotorizados(
+                    "¡Pedido Express Disponible!", // Título de la notificación
+                    `El pedido Express con destino a ${pedidoActualizado.direccion} está disponible nuevamente. ¡Revisa la bandeja!`, // Cuerpo de la notificación
+                    { 
+                        orderId: pedidoActualizado._id.toString(),
+                        tipoPedido: pedidoActualizado.tipoPedido,
+                        localName: localName,
+                        direccion: pedidoActualizado.direccion,
+                    },
+                    {
+                        priority: 'high', 
+                    }
+                );
+                console.log(`[Controlador de Pedidos] Notificación de pedido Express liberado enviada a motorizados para pedido ${pedidoActualizado._id}.`);
+            } catch (notificationError) {
+                console.error(`[Controlador de Pedidos] Error al enviar notificación de pedido Express liberado para ${pedidoActualizado._id}:`, notificationError);
+            }
+            return pedidoActualizado;
+        } else {
+            console.log(`[Controlador de Pedidos] Pedido Express ${pedidoId} no liberado porque su estado es '${pedido.estadoPedido}'.`);
+            return pedido; // Devolver el estado actual si no se libera
+        }
+    } catch (error) {
+        console.error(`[Controlador de Pedidos] Error interno al liberar el pedido Express ${pedidoId}:`, error);
+        throw error; // Volver a lanzar para que la función que llama pueda manejarlo
+    } finally {
+        // Limpiar el temporizador del mapa si existe, independientemente del estado de liberación
+        if (assignedOrderTimeouts.has(pedidoId)) {
+            clearTimeout(assignedOrderTimeouts.get(pedidoId));
+            assignedOrderTimeouts.delete(pedidoId);
+            console.log(`[Controlador de Pedidos] Temporizador para pedido ${pedidoId} limpiado.`);
+        }
+    }
+} 
 const formatHoraEntrega = (horaEntrega) => {
     const date = new Date(horaEntrega);
     return date.toLocaleTimeString('es-PE', { hour12: false });
@@ -923,6 +997,325 @@ const marcarPedidoEnLocalPorDriver = async (req, res) => {
     } catch (error) {
         console.error("Error en marcarPedidoEnLocal: ", error);
         res.status(500).json({ msg: "Error interno del servidor" });
+    }
+};
+
+export const asignarPedidoExpress = async (req, res) => {
+    const { pedidoId } = req.params;
+    const { driverId } = req.body; // El ID del motorizado a asignar
+
+    try {
+        // 1. Validar IDs
+        if (!mongoose.Types.ObjectId.isValid(pedidoId)) {
+            return res.status(400).json({ msg: "ID de pedido inválido." });
+        }
+        if (!mongoose.Types.ObjectId.isValid(driverId)) {
+            return res.status(400).json({ msg: "ID de motorizado inválido." });
+        }
+
+        // 2. Buscar el pedido y el motorizado
+        const pedido = await Pedido.findById(pedidoId);
+        const motorizado = await Usuario.findById(driverId);
+
+        if (!pedido) {
+            return res.status(404).json({ msg: "Pedido Express no encontrado." });
+        }
+        if (!motorizado || motorizado.rol !== 'motorizado') {
+            return res.status(404).json({ msg: "Motorizado no encontrado o ID no corresponde a un motorizado." });
+        }
+        
+        // Evitar reasignar si ya está asignado y aceptado/recogido, etc.
+        if (pedido.estadoPedido !== 'sin asignar' && pedido.estadoPedido !== 'rechazado') {
+            return res.status(400).json({ msg: `El pedido ya está en estado '${pedido.estadoPedido}' y no puede ser reasignado directamente.` });
+        }
+
+        // 3. Asignar el pedido al motorizado y actualizar estado
+        pedido.driver = driverId;
+        pedido.estadoPedido = 'pendiente'; // El motorizado debe aceptarlo
+        pedido.horaAceptado = null; // Reiniciar la hora de aceptación
+        // Limpiar otros campos de tiempo si de alguna manera se establecieron
+        pedido.horaRecojo = null;
+        pedido.horaLlegadaLocal = null;
+        pedido.horaEntrega = null;
+        pedido.idMensajeTelegram = null; // Limpiar ID de mensaje de Telegram anterior si existe
+        pedido.idTelegram = null; // Limpiar ID de chat de Telegram anterior si existe
+
+        const pedidoActualizado = await pedido.save();
+
+        // Obtener el nombre del local para la notificación
+        const localId = pedidoActualizado.local && pedidoActualizado.local.length > 0 ? pedidoActualizado.local[0] : null;
+        let localName = 'Local Desconocido';
+        if (localId) {
+            const local = await Local.findById(localId);
+            if (local) {
+                localName = local.nombre;
+            }
+        }
+
+        // 4. Enviar notificación FCM al motorizado asignado
+        const notificationTitle = "¡Nuevo Pedido Asignado!";
+        const notificationBody = `Se te ha asignado el pedido Express con recojo en ${localName} y entrega en ${pedidoActualizado.direccion}. ¡Acéptalo en 60 segundos!`;
+        const notificationData = {
+            orderId: pedidoActualizado._id.toString(),
+            tipoPedido: pedidoActualizado.tipoPedido,
+            action: 'accept_express_assignment', // Acción para la aplicación móvil
+            localName: localName,
+            direccion: pedidoActualizado.direccion,
+            timeout: '60000', // El frontend puede usar esto para una cuenta regresiva
+        };
+        const notificationOptions = {
+            priority: 'high',
+            timeToLive: 60, // La notificación expirará en 60 segundos si no se entrega
+        };
+
+        try {
+            await sendPushNotificationToMotorizado(
+                driverId,
+                notificationTitle,
+                notificationBody,
+                notificationData,
+                notificationOptions
+            );
+            console.log(`[Controlador de Pedidos] Notificación de asignación enviada a motorizado ${driverId} para pedido ${pedidoId}.`);
+        } catch (notificationError) {
+            console.error(`[Controlador de Pedidos] Error al enviar notificación de asignación a motorizado ${driverId}:`, notificationError);
+            // Decide cómo manejar esto: ¿debería fallar la asignación? Por ahora, registramos y continuamos.
+        }
+
+        // 5. Establecer un temporizador para liberar el pedido si no es aceptado
+        // Limpiar cualquier temporizador existente para este pedido en caso de que se reasigne rápidamente
+        if (assignedOrderTimeouts.has(pedidoId)) {
+            clearTimeout(assignedOrderTimeouts.get(pedidoId));
+            assignedOrderTimeouts.delete(pedidoId);
+        }
+
+        const timeoutId = setTimeout(async () => {
+            console.log(`[Controlador de Pedidos] Temporizador expirado para pedido ${pedidoId}. Verificando estado...`);
+            const currentPedido = await Pedido.findById(pedidoId);
+
+            // Solo liberar si todavía está 'pendiente' y asignado al mismo conductor
+            if (currentPedido && currentPedido.estadoPedido === 'pendiente' && currentPedido.driver && currentPedido.driver.toString() === driverId.toString()) {
+                console.log(`[Controlador de Pedidos] Pedido ${pedidoId} aún pendiente por motorizado ${driverId}. Liberando...`);
+                await _releaseExpressOrderLogic(pedidoId); // Llamar a la lógica de liberación interna
+            } else {
+                console.log(`[Controlador de Pedidos] Pedido ${pedidoId} ya no está en estado 'pendiente' o el driver ha cambiado. No se libera automáticamente.`);
+            }
+            assignedOrderTimeouts.delete(pedidoId); // Asegurarse de que se elimine del mapa
+        }, 60 * 1000); // 60 segundos
+
+        assignedOrderTimeouts.set(pedidoId, timeoutId); // Almacenar el ID del temporizador
+
+        res.status(200).json({
+            msg: "Pedido Express asignado exitosamente al motorizado. Esperando aceptación.",
+            pedido: pedidoActualizado,
+            motorizadoAsignado: motorizado.nombre // O cualquier otra información relevante del conductor
+        });
+
+    } catch (error) {
+        console.error("Error al asignar el pedido Express:", error);
+        res.status(500).json({ msg: "Error interno del servidor al asignar el pedido Express." });
+    }
+};
+
+export const liberarPedidoApp = async (req, res) => {
+    try {
+        const { pedidoId } = req.params; // Asume que el ID del pedido viene en los parámetros de la URL
+
+        // Validar que el ID del pedido sea un ObjectId válido de Mongoose
+        if (!mongoose.Types.ObjectId.isValid(pedidoId)) {
+            return res.status(400).json({ msg: "ID de pedido inválido." });
+        }
+
+        // Buscar el pedido por su ID
+        const pedido = await PedidoApp.findById(pedidoId);
+
+        if (!pedido) {
+            return res.status(404).json({ msg: "Pedido no encontrado." });
+        }
+
+        // Actualizar los campos del pedido para "liberarlo"
+        pedido.estadoPedido = 'nuevo';
+        pedido.driver = null;
+        pedido.horaLlegadaRecojo = null;
+        pedido.horaRecojo = null;
+        pedido.horaLlegadaDestino = null;
+        pedido.horaEntrega = null;
+
+        const pedidoActualizado = await pedido.save();
+
+        // --- LÓGICA DE NOTIFICACIÓN DESPUÉS DE LIBERAR EL PEDIDO ---
+        try {
+            await sendNewOrderNotificationToMotorizados(
+                "¡Pedido Disponible Nuevamente!", // Título de la notificación
+                `El pedido #${pedidoActualizado.numeroPedido} está disponible. ¡Revisa la bandeja!`, // Cuerpo de la notificación
+                { 
+                    orderId: pedidoActualizado._id.toString(), // Datos personalizados para la app
+                    numeroPedido: pedidoActualizado.numeroPedido.toString(),
+                },
+                {
+                    priority: 'high', 
+                }
+            );
+            console.log(`[appPedidoController] Notificación de pedido liberado enviada a motorizados para pedido ${pedidoActualizado.numeroPedido}.`);
+        } catch (notificationError) {
+            console.error(`[appPedidoController] Error al enviar notificación de pedido liberado para ${pedidoActualizado.numeroPedido}:`, notificationError);
+            // Registra el error pero no impidas que la operación de liberación se complete.
+        }
+        // --- FIN LÓGICA DE NOTIFICACIÓN ---
+
+        res.status(200).json({
+            msg: "Pedido liberado exitosamente y disponible para asignación.",
+            pedido: pedidoActualizado,
+        });
+
+    } catch (error) {
+        console.error("Error al liberar el pedido de la aplicación:", error);
+        res.status(500).json({ msg: "Error interno del servidor al liberar el pedido de la aplicación." });
+    }
+};
+
+export const liberarPedidoExpress = async (req, res) => {
+    try {
+        const { pedidoId } = req.params; // Expects the order ID in the URL parameters
+
+        // Validate if the provided ID is a valid Mongoose ObjectId
+        if (!mongoose.Types.ObjectId.isValid(pedidoId)) {
+            return res.status(400).json({ msg: "ID de pedido inválido." });
+        }
+
+        // Find the order by its ID
+        const pedido = await Pedido.findById(pedidoId);
+
+        if (!pedido) {
+            return res.status(404).json({ msg: "Pedido Express no encontrado." });
+        }
+
+        // Update the order fields to "release" it
+        pedido.estadoPedido = 'sin asignar'; // Reset status to default "sin asignar"
+        pedido.driver = null; // Unassign any previously assigned driver
+        pedido.horaAceptado = null;
+        pedido.horaRecojo = null;
+        pedido.horaLlegadaLocal = null;
+        pedido.horaEntrega = null;
+        // Optionally, reset idMensajeTelegram and idTelegram if they are related to the driver assignment
+        pedido.idMensajeTelegram = null; 
+        pedido.idTelegram = null;
+
+        const pedidoActualizado = await pedido.save();
+
+        // Get the local associated with the order for the notification message
+        // Adjust logic if 'local' can contain multiple IDs or is guaranteed to be single
+        const localId = pedidoActualizado.local && pedidoActualizado.local.length > 0 ? pedidoActualizado.local[0] : null;
+        let localName = 'Local Desconocido';
+        if (localId) {
+            const local = await Local.findById(localId);
+            if (local) {
+                localName = local.nombre;
+            }
+        }
+
+        // --- NOTIFICATION LOGIC AFTER RELEASING THE ORDER ---
+        try {
+            await sendNewOrderNotificationToMotorizados(
+                "¡Pedido Express Disponible!", // Notification title
+                `El pedido Express con destino a ${pedidoActualizado.direccion} está disponible nuevamente. ¡Revisa la bandeja!`, // Notification body
+                { 
+                    orderId: pedidoActualizado._id.toString(), // Custom data for the app
+                    tipoPedido: pedidoActualizado.tipoPedido,
+                    localName: localName,
+                    direccion: pedidoActualizado.direccion,
+                    // Add more relevant data here if the app needs it
+                },
+                {
+                    priority: 'high', 
+                }
+            );
+            console.log(`[pedidoController] Notificación de pedido Express liberado enviada a motorizados para pedido ${pedidoActualizado._id}.`);
+        } catch (notificationError) {
+            console.error(`[pedidoController] Error al enviar notificación de pedido Express liberado para ${pedidoActualizado._id}:`, notificationError);
+            // Log the error but don't prevent the order release operation from completing.
+        }
+        // --- END NOTIFICATION LOGIC ---
+
+        res.status(200).json({
+            msg: "Pedido Express liberado exitosamente y disponible para asignación.",
+            pedido: pedidoActualizado,
+        });
+
+    } catch (error) {
+        console.error("Error al liberar el pedido Express:", error);
+        res.status(500).json({ msg: "Error interno del servidor al liberar el pedido Express." });
+    }
+};
+
+export const liberarEnvioPaquete = async (req, res) => {
+    try {
+        const { paqueteId } = req.params; // Expects the package ID in the URL parameters
+
+        // Validate if the provided ID is a valid Mongoose ObjectId
+        if (!mongoose.Types.ObjectId.isValid(paqueteId)) {
+            return res.status(400).json({ msg: "ID de envío de paquete inválido." });
+        }
+
+        // Find the package delivery order by its ID
+        const envioPaquete = await EnvioPaquete.findById(paqueteId);
+
+        if (!envioPaquete) {
+            return res.status(404).json({ msg: "Envío de paquete no encontrado." });
+        }
+
+        // Update the order fields to "release" it
+        envioPaquete.estadoPedido = 'sin asignar'; // Reset status to default "sin asignar"
+        envioPaquete.driverAsignado = null; // Unassign any previously assigned driver
+
+        // Reset all time-related fields
+        envioPaquete.horaAceptacion = null;
+        envioPaquete.horaLlegadaRecojo = null;
+        envioPaquete.horaRecojo = null;
+        envioPaquete.horaLlegadaDestino = null;
+        envioPaquete.horaEntrega = null;
+        envioPaquete.horaLlegadaLocalDriver = null; // Also reset this specific time field
+        envioPaquete.horaEntregaEstimada = null; // Clear estimated delivery time if it was set
+        envioPaquete.horaRealEntrega = null; // Clear real delivery time if it was set
+
+        // Optionally, reset Telegram message IDs if they are related to the driver assignment
+        envioPaquete.idMensajeTelegram = null;
+        envioPaquete.idTelegram = null;
+
+        const paqueteActualizado = await envioPaquete.save();
+
+        // --- NOTIFICATION LOGIC AFTER RELEASING THE ORDER ---
+        try {
+            await sendNewOrderNotificationToMotorizados(
+                "¡Envío de Paquete Disponible!", // Notification title
+                `El envío de paquete con recojo en ${paqueteActualizado.recojo.direccion} y entrega en ${paqueteActualizado.entrega.direccion} está disponible nuevamente. ¡Revisa la bandeja!`, // Notification body
+                {
+                    orderId: paqueteActualizado._id.toString(), // Custom data for the app
+                    tipoPedido: paqueteActualizado.tipoPedido,
+                    recojoDireccion: paqueteActualizado.recojo.direccion,
+                    entregaDireccion: paqueteActualizado.entrega.direccion,
+                    costoEnvio: paqueteActualizado.costoEnvio.toString(),
+                    distanciaEnvioKm: paqueteActualizado.distanciaEnvioKm.toString()
+                },
+                {
+                    priority: 'high',
+                }
+            );
+            console.log(`[envioPaqueteController] Notificación de envío de paquete liberado enviada para pedido ${paqueteActualizado._id}.`);
+        } catch (notificationError) {
+            console.error(`[envioPaqueteController] Error al enviar notificación de envío de paquete liberado para ${paqueteActualizado._id}:`, notificationError);
+            // Log the error but don't prevent the order release operation from completing.
+        }
+        // --- END NOTIFICATION LOGIC ---
+
+        res.status(200).json({
+            msg: "Envío de paquete liberado exitosamente y disponible para asignación.",
+            envioPaquete: paqueteActualizado,
+        });
+
+    } catch (error) {
+        console.error("Error al liberar el envío de paquete:", error);
+        res.status(500).json({ msg: "Error interno del servidor al liberar el envío de paquete." });
     }
 };
 

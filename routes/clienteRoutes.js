@@ -5,6 +5,7 @@ import {
     enviarCodigoVerificacion, // Importa la nueva función desde el servicio
     editarCliente,
     obtenerClientePorId,
+    manejarPostVerificacion
 } from '../services/clienteService.js';
 
 import { registerOrUpdateFcmToken, removeFcmToken } from '../controllers/clienteController.js';
@@ -16,6 +17,8 @@ router.post("/registrar", registrarNuevoCliente);
 
 // Ruta para verificar el código de verificación ingresado por el cliente
 router.post("/verificar-codigo", verificarCodigoCliente);
+
+router.post("/post-verificacion", manejarPostVerificacion);
 
 // Nueva ruta para enviar el código de verificación directamente
 router.post("/enviar-codigo", enviarCodigoVerificacion); // Usa la función del servicio
