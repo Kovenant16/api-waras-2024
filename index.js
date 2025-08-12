@@ -19,7 +19,7 @@ import appPedidoRoutes from './routes/appPedidoRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 
 // 👉 DESCOMENTA ESTA LÍNEA para que el bot de WhatsApp se pueda importar
-// import { startSock } from './bot/botWhatsapp.js'; // Línea comentada
+
 
 import http from 'http';
 import pedidos from './sockets/pedidos.js';
